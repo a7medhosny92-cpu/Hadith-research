@@ -1,0 +1,63 @@
+[project]
+name = "review-backend"
+version = "0.1.0"
+description = "Hadith research, study and verification backend (RAG, Classical Arabic) over the turath.io corpus"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Core runtime dependencies (API + ingestion). Heavy ML/NLP deps live in optional
+# extras below so the base install stays light and CI/ingestion can run anywhere.
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "httpx>=0.27",
+    "zstandard>=0.22",          # turath catalog (data-v3.json) is zstd-encoded
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",     # PostgreSQL driver
+    "pgvector>=0.3",            # vector column type for PostgreSQL
+    "selectolax>=0.3",          # fast HTML parsing of turath page markup
+    "pyarabic>=0.6.15",         # Arabic normalisation helpers
+]
+
+[project.optional-dependencies]
+# Semantic search / embeddings (local, CPU-friendly by default).
+embeddings = [
+    "sentence-transformers>=3.0",
+    "torch>=2.2",
+]
+# Provider-agnostic LLM layer: local (Ollama) + any cloud engine (Claude, OpenAI, ...).
+llm = [
+    "litellm>=1.40",
+]
+# Richer Classical-Arabic NLP (narrator NER, morphology). Optional — heavier install.
+nlp = [
+    "camel-tools>=1.5",
+]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",              # httpx mocking for the turath client tests
+    "ruff>=0.5",
+]
+
+[project.scripts]
+hadith-ingest = "scripts.ingest:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.ingestion", "app.parsing", "app.routers", "app.models"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

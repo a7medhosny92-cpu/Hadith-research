@@ -1,0 +1,26 @@
+from app.parsing.normalize import normalize_for_search, strip_diacritics
+
+
+def test_strip_diacritics_keeps_letters():
+    # removes tashkeel but preserves hamza-on-alef (letter identity intact)
+    assert strip_diacritics("إِنَّمَا الْأَعْمَالُ") == "إنما الأعمال"
+
+
+def test_normalize_folds_alef_variants():
+    assert normalize_for_search("إِنَّمَا الْأَعْمَالُ") == "انما الاعمال"
+
+
+def test_query_matches_vocalised_source():
+    # the whole point: a bare user query matches a fully-vocalised matn
+    source = "إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ"
+    query = "انما الاعمال بالنيات"
+    assert normalize_for_search(source) == normalize_for_search(query)
+
+
+def test_ta_marbuta_and_alef_maqsura_folded():
+    assert normalize_for_search("صَلَاةٌ") == "صلاه"
+    assert normalize_for_search("مُوسَى") == "موسي"
+
+
+def test_tatweel_removed():
+    assert normalize_for_search("الحـــمد") == "الحمد"
