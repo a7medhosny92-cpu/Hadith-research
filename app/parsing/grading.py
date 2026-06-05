@@ -26,15 +26,30 @@ _CTX = re.compile(
 )
 # … or a bracketed ruling like [صحيح] / (ضعيف).
 _BRACKET = re.compile(r"[\[(]\s*(%s)\s*[\])]" % _GRADE_ALT)
+# A bare grade token, for text that is ALREADY a ruling (e.g. an <s0> grade tag).
+_RULING = re.compile(r"(%s)" % _GRADE_ALT)
 
 _MARKS = re.compile(DIACRITICS_CLASS)
 _WS = re.compile(r"\s+")
 
 
+def _clean(grade: str) -> str:
+    return _WS.sub(" ", _MARKS.sub("", grade)).strip()
+
+
 def extract_grade(text: str) -> str | None:
+    """Find an authenticity grade that sits in a grading *context* (see module doc)."""
     for pattern in (_BRACKET, _CTX):
         match = pattern.search(text)
         if match:
-            grade = _MARKS.sub("", match.group(1))  # drop diacritics from the match
-            return _WS.sub(" ", grade).strip()
+            return _clean(match.group(1))
     return None
+
+
+def grade_in_ruling(text: str | None) -> str | None:
+    """Normalise a grade from text that is itself a ruling (no context needed),
+    e.g. the contents of an ``<s0>`` grade tag like ``حسن صحيح``."""
+    if not text:
+        return None
+    match = _RULING.search(text)
+    return _clean(match.group(1)) if match else None

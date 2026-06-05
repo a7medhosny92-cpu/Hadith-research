@@ -53,7 +53,12 @@ _TITLE_SPAN = re.compile(
 _ANY_TAG = re.compile(r"<[^>]+>")
 _FOOTNOTE_REF = re.compile(r"\(\^\s*[\d٠-٩۰-۹]+\s*\)")
 _FOOTNOTE_SEP = re.compile(r"_{4,}")
+# Albani-style grade tag, e.g. "<s0> حسن صحيح" — the verdict runs to the line end.
+_S0_GRADE = re.compile(r"<s0>\s*([^<\n]+)")
+# In-text printed-page anchor, e.g. "⦗٦⦘".
+_PAGE_ANCHOR = re.compile(r"⦗[^⦘]*⦘")
 _WS = re.compile(r"\s+")
+_INLINE_WS = re.compile(r"[ \t]+")
 
 
 def extract_titles(text: str) -> list[str]:
@@ -85,10 +90,27 @@ def split_footnotes(text: str) -> tuple[str, str]:
     return text, ""
 
 
+def extract_s0_grades(text: str) -> list[str]:
+    """Albani-style grade verdicts from ``<s0>`` tags (usually in the footnotes)."""
+    return [m.group(1).strip() for m in _S0_GRADE.finditer(text)]
+
+
 def clean_body(text: str) -> str:
-    """Body text ready for hadith scanning: headings removed, tags & footnote refs
-    gone, whitespace collapsed (diacritics preserved — the matn stays faithful)."""
+    """Body text with whitespace fully collapsed (headings/tags/footnote refs gone,
+    diacritics preserved). Used where line structure does not matter."""
     text = remove_title_spans(text)
     text = strip_tags(text)
     text = remove_footnote_refs(text)
     return _WS.sub(" ", text).strip()
+
+
+def clean_block(text: str) -> str:
+    """Like :func:`clean_body` but **preserves line breaks**, which is required to
+    detect line-anchored hadith markers (e.g. ``١ - …``). Also strips ``⦗..⦘`` page
+    anchors. Each line is trimmed; spaces/tabs are collapsed within lines."""
+    text = remove_title_spans(text)
+    text = _PAGE_ANCHOR.sub("", text)
+    text = strip_tags(text)
+    text = remove_footnote_refs(text)
+    text = _INLINE_WS.sub(" ", text)
+    return "\n".join(line.strip() for line in text.split("\n")).strip()

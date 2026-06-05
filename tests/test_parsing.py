@@ -106,3 +106,35 @@ def test_iter_hadith_end_to_end():
     assert h2.matn_confidence == "phrase"
     assert h2.grade == "صحيح"
     assert "التحفة" not in h2.text  # takhrij note lived in the footnotes, excluded
+
+
+# Sunan-style edition: "N -" markers, «…» matn, ⦗N⦘ page anchors, and per-hadith
+# grades in <s0> tags collected in one footnote block at the page bottom.
+DASH_PAGES = [
+    {
+        "pg": 5,
+        "meta": {"vol": "1", "page": 50, "headings": []},
+        "text": (
+            '<span data-type="title" id=toc-1>(١) باب الطهور</span>\n'
+            "١ - حَدَّثَنَا قُتَيْبَةُ، عَنْ مَالِكٍ، عَنِ النَّبِيِّ ﷺ ⦗٦⦘ قَالَ: "
+            "«لَا تُقْبَلُ صَلَاةٌ بِغَيْرِ طُهُورٍ»\n"
+            "٢ - حَدَّثَنَا هَنَّادٌ، عَنْ عَائِشَةَ، أَنَّهَا قَالَتْ: كَانَ النَّبِيُّ ﷺ يُحِبُّ التَّيَمُّنَ\n"
+            "_________\n<s0> صحيح\n<s0> ضعيف"
+        ),
+    },
+]
+
+
+def test_iter_hadith_dash_style_with_s0_grades():
+    hadiths = list(iter_hadith(1339, DASH_PAGES))
+    assert [h.number for h in hadiths] == [1, 2]
+
+    h1 = hadiths[0]
+    assert h1.chapter == "(١) باب الطهور"
+    assert h1.matn == "لَا تُقْبَلُ صَلَاةٌ بِغَيْرِ طُهُورٍ"  # from «…», page anchor removed
+    assert "⦗" not in h1.text
+    assert h1.grade == "صحيح"  # first <s0> → first hadith
+
+    h2 = hadiths[1]
+    assert h2.matn_confidence == "phrase"
+    assert h2.grade == "ضعيف"  # second <s0> → second hadith

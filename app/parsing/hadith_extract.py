@@ -1,9 +1,14 @@
 """Extract structured hadith records from a downloaded turath book.
 
-A book is a list of pages (``{"pg", "meta": {...}, "text"}``). Hadith boundaries are
-marked inline by ``• [N]`` (N in Arabic-Indic digits) and a single hadith may span
-several pages, so we scan the page stream and accumulate across page breaks, tracking
-the chapter (bab) heading and the starting page/volume for citation.
+A book is a list of pages (``{"pg", "meta": {...}, "text"}``). Hadith are marked
+inline; the marker style varies by edition, so we detect it per book:
+
+* style **bullet** — ``• [N]``  (e.g. صحيح البخاري ط التأصيل)
+* style **dash**   — ``N - …``  (صحيح مسلم، السنن، …)
+
+A single hadith may span several pages, so we scan the page stream and accumulate
+across page breaks, tracking the chapter (bab) heading and the starting page for
+citation, and skipping the editor's muqaddima via the book ``numbers`` index.
 """
 
 from __future__ import annotations
@@ -12,21 +17,27 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Pattern
 
-from app.parsing.grading import extract_grade
+from app.parsing.grading import extract_grade, grade_in_ruling
 from app.parsing.html_clean import (
     arabic_digits_to_int,
-    clean_body,
+    clean_block,
+    extract_s0_grades,
     extract_titles,
     remove_footnote_refs,
     split_footnotes,
 )
 from app.parsing.isnad_matn import split_isnad_matn
 
-# A hadith starts at a "• [N]" bullet. A "* [N]" line is a takhrij/atraf note, not a
-# hadith, so we anchor strictly on the bullet.
-_HADITH_MARKER = re.compile(r"•\s*\[\s*([\d٠-٩۰-۹]+)\s*\]")
+_NUM = r"[\d٠-٩۰-۹]+"
+# "• [N]" bullet (a "* [N]" line is a takhrij note, not a hadith — we anchor on •).
+_MARKER_BULLET: Pattern[str] = re.compile(rf"(?:^|\n)[ \t]*•\s*\[\s*({_NUM})\s*\]")
+# "N - " at the start of a line.
+_MARKER_DASH: Pattern[str] = re.compile(rf"(?:^|\n)[ \t]*({_NUM})\s*-\s+")
+# A leading sub-number like "(١)" some editions print after the hadith number.
+_LEADING_SUBNUM = re.compile(rf"^\s*\(\s*{_NUM}\s*\)\s*")
+_WS = re.compile(r"\s+")
 
 
 @dataclass(slots=True)
@@ -48,8 +59,9 @@ class ParsedHadith:
 
 
 def _finish(book_id: int, cur: dict, default_grade: str | None) -> ParsedHadith:
-    text = " ".join(p.strip() for p in cur["parts"] if p.strip()).strip()
+    text = _WS.sub(" ", " ".join(cur["parts"])).strip()
     isnad, matn, confidence = split_isnad_matn(text)
+    grade = extract_grade(text) or grade_in_ruling(cur.get("grade_hint")) or default_grade
     return ParsedHadith(
         book_id=book_id,
         number=cur["number"],
@@ -57,12 +69,24 @@ def _finish(book_id: int, cur: dict, default_grade: str | None) -> ParsedHadith:
         isnad=isnad,
         matn=matn,
         matn_confidence=confidence,
-        grade=extract_grade(text) or default_grade,
+        grade=grade,
         chapter=cur["chapter"],
         volume=cur["volume"],
         page=cur["page"],
         page_id=cur["page_id"],
     )
+
+
+_DASH_PROBE = re.compile(rf"(?:^|\n)[ \t]*{_NUM}\s*-\s")
+
+
+def _detect_marker(pages: list[dict]) -> Pattern[str]:
+    """Pick the marker style for this book by comparing how often each style occurs
+    in a sample of the raw text."""
+    text = "\n".join(p.get("text", "") for p in pages[:40])
+    bullets = text.count("• [")
+    dashes = len(_DASH_PROBE.findall(text))
+    return _MARKER_BULLET if bullets > 0 and bullets >= dashes else _MARKER_DASH
 
 
 def iter_hadith(
@@ -72,47 +96,54 @@ def iter_hadith(
     default_grade: str | None = None,
     start_page_id: int | None = None,
 ) -> Iterator[ParsedHadith]:
-    """Yield :class:`ParsedHadith` for every ``• [N]`` unit in the book.
+    """Yield :class:`ParsedHadith` for every hadith marker in the book.
 
     ``start_page_id`` skips front matter (the editor's muqaddima, which quotes hadith
     out of sequence): pass the page id where the real numbered text begins.
     """
+    pages = list(pages)
+    marker = _detect_marker(pages)
     current: dict | None = None
     chapter: str | None = None
 
     for page in sorted(pages, key=lambda p: p.get("pg", 0)):
-        if start_page_id is not None and page.get("pg", 0) < start_page_id:
+        pg = page.get("pg", 0)
+        if start_page_id is not None and pg < start_page_id:
             continue
         meta = page.get("meta") or {}
         raw = page.get("text") or ""
 
-        body, _footnotes = split_footnotes(raw)
+        body, footnotes = split_footnotes(raw)
         titles = extract_titles(body) or (meta.get("headings") or [])
         if titles:
             chapter = remove_footnote_refs(titles[-1]).strip()
-        body = clean_body(body)
+        page_grades = extract_s0_grades(footnotes) or extract_s0_grades(raw)
+        block = clean_block(body)
 
-        matches = list(_HADITH_MARKER.finditer(body))
+        matches = list(marker.finditer(block))
         if not matches:
-            if current is not None:  # whole page continues the open hadith
-                current["parts"].append(body)
+            if current is not None:
+                current["parts"].append(block)
             continue
 
-        prefix = body[: matches[0].start()]
+        prefix = block[: matches[0].start()]
         if current is not None and prefix.strip():
             current["parts"].append(prefix)
 
         for i, match in enumerate(matches):
             if current is not None:
                 yield _finish(book_id, current, default_grade)
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(block)
+            grade_hint = page_grades[i] if i < len(page_grades) else None
+            segment = _LEADING_SUBNUM.sub("", block[match.end():end], count=1)
             current = {
                 "number": arabic_digits_to_int(match.group(1)),
                 "chapter": chapter,
                 "volume": meta.get("vol"),
                 "page": meta.get("page"),
-                "page_id": page.get("pg"),
-                "parts": [body[match.end():end]],
+                "page_id": pg,
+                "grade_hint": grade_hint,
+                "parts": [segment],
             }
 
     if current is not None:
