@@ -93,6 +93,19 @@ pytest
 docker compose up -d db ollama
 ```
 
+### Get the corpus locally — one command
+
+On **your own machine** (where the data persists), download + parse + index in one go:
+
+```bash
+bash scripts/setup_local.sh          # canonical: core collections + main شروح (default)
+bash scripts/setup_local.sh core     # collections only — lighter/faster
+bash scripts/setup_local.sh full     # every hadith-sciences category (~2.9M pages — days)
+```
+
+It is **resumable**: if it stops, run it again and it continues. The steps below are
+the same pipeline run by hand (ingest → parse → index).
+
 ### Ingestion (downloading from turath.io)
 
 ```bash
