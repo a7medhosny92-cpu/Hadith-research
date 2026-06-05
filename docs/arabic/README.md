@@ -22,9 +22,22 @@ costruiamo l'app-tutor interattiva per imparare l'arabo classico/coranico.
 ## Avviare il tutor (finestra interattiva)
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.arabic.web:app --reload      # poi apri http://localhost:8000
-# CLI equivalente:
+# avvio con un comando solo (installa le dipendenze minime e parte):
+./run_tutor.sh                 # poi apri http://localhost:8000
+# PORT=9000 ./run_tutor.sh     # porta personalizzata
+
+# oppure manuale:
+pip install -r requirements-tutor.txt
+uvicorn app.arabic.web:app --reload
+```
+
+> Il tutor è leggero: gli bastano `fastapi`, `uvicorn`, `pydantic`
+> (`requirements-tutor.txt`). ffmpeg/espeak/piper servono solo al generatore di
+> video, non al tutor.
+
+CLI equivalente:
+
+```bash
 python3 arabic_cli.py iraab "إِنَّ اللَّهَ غَفُورٌ"
 python3 arabic_cli.py conjugate ك ت ب 1
 python3 arabic_cli.py tajweed "بِسْمِ اللَّهِ"
