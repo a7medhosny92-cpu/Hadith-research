@@ -72,6 +72,7 @@ class CorpusDownloader:
         self._save_every = save_every
         self._on_progress = on_progress or (lambda _msg: None)
         self._manifest = Manifest.load(raw_dir / "manifest.json")
+        self._info_by_book: dict[int, dict] = {}
 
     def _book_path(self, book_id: int) -> Path:
         return self._books_dir / f"{book_id}.json"
@@ -102,6 +103,14 @@ class CorpusDownloader:
         )
         self._manifest.books[book.id] = progress
 
+        # Book metadata + indexes (headings, hadith-number → page map) are needed for
+        # numbering, chapter mapping and skipping front matter. Best-effort, fetched once.
+        if book.id not in self._info_by_book:
+            try:
+                self._info_by_book[book.id] = await self._client.get_book_info(book.id)
+            except Exception:  # noqa: BLE001
+                self._info_by_book[book.id] = {}
+
         existing_pages = self._load_existing_pages(book.id)
         start_page = len(existing_pages) + 1
         last_page = book.page_count or (max_pages or 0)
@@ -109,6 +118,7 @@ class CorpusDownloader:
             last_page = min(last_page or max_pages, max_pages)
 
         if start_page > last_page and progress.status == "complete":
+            self._write_pages(book, existing_pages)  # ensure meta/indexes are persisted
             self._on_progress(f"skip {book.id} ({book.name}) — already complete")
             return
 
@@ -152,6 +162,7 @@ class CorpusDownloader:
             return []
 
     def _write_pages(self, book: BookRecord, pages: list[dict]) -> None:
+        info = self._info_by_book.get(book.id, {})
         payload = {
             "book_id": book.id,
             "name": book.name,
@@ -159,6 +170,8 @@ class CorpusDownloader:
             "cat_id": book.cat_id,
             "page_count": book.page_count,
             "source": "turath.io",
+            "meta": info.get("meta"),
+            "indexes": info.get("indexes"),
             "pages": pages,
         }
         path = self._book_path(book.id)
