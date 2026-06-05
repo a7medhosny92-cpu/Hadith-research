@@ -7,13 +7,26 @@ Prophet ﷺ). Narrator grading needs a rijal database — flagged in the notes.
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.config import get_settings
 from app.qa.isnad import analyze_isnad
+from app.rijal import RijalIndex, load_entries
 from app.routers.search import get_index
 from app.search import HadithIndex
 
 router = APIRouter(tags=["isnad"])
+
+
+@lru_cache(maxsize=1)
+def _rijal_index() -> RijalIndex:
+    return RijalIndex(load_entries(get_settings().rijal_path))
+
+
+def get_rijal() -> RijalIndex:
+    return _rijal_index()
 
 
 @router.get("/verify-isnad")
@@ -21,6 +34,7 @@ def verify_isnad(
     hadith_id: int | None = Query(None, description="indexed hadith whose isnad to analyse"),
     isnad: str | None = Query(None, min_length=2, description="or a free isnad string"),
     index: HadithIndex = Depends(get_index),
+    rijal: RijalIndex = Depends(get_rijal),
 ) -> dict:
     if hadith_id is not None:
         hit = index.get(hadith_id)
@@ -32,4 +46,4 @@ def verify_isnad(
     else:
         raise HTTPException(status_code=422, detail="provide hadith_id or isnad")
 
-    return {"source": source, "analysis": analyze_isnad(chain).to_dict()}
+    return {"source": source, "analysis": analyze_isnad(chain, rijal=rijal).to_dict()}

@@ -14,8 +14,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass
+from typing import TYPE_CHECKING
 
 from app.parsing.normalize import normalize_for_search, strip_diacritics
+
+if TYPE_CHECKING:
+    from app.rijal import RijalIndex, RijalMatch
 
 # Transmission terms → mode. Keys are in the folded form of normalize_for_search.
 _VIA: dict[str, str] = {
@@ -44,12 +48,37 @@ class IsnadAnalysis:
     has_anana: bool           # عن — possible tadlīs, needs samāʿ confirmed
     reaches_prophet: bool
     notes: list[str]
+    rijal_assessment: dict | None = None  # narrator gradings, when a RijalIndex is supplied
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-def analyze_isnad(text: str) -> IsnadAnalysis:
+def _chain_assessment(matches: list["RijalMatch | None"], total: int) -> dict:
+    """Summarise the chain from its narrator gradings — verdict by the weakest link."""
+    ranks = [m.entry.rank for m in matches if m and m.entry.rank is not None]
+    known = sum(1 for m in matches if m)
+    unknown = total - known
+    weakest = min(ranks) if ranks else None
+
+    if weakest is None:
+        verdict = "لم يُعرف رواة هذا الإسناد في قاعدة الرجال (القاعدة محدودة)."
+    elif weakest <= 1:
+        verdict = "في الإسناد راوٍ متروك أو متّهم؛ ضعيف جدًا."
+    elif weakest == 2:
+        verdict = "في الإسناد راوٍ ضعيف."
+    elif weakest <= 4:
+        verdict = "في الإسناد راوٍ مجهول أو ليّن الحديث."
+    elif weakest <= 6:
+        verdict = "في الإسناد من لا يُحتجّ بتفرّده (مقبول/صدوق له أوهام)."
+    elif unknown == 0:
+        verdict = "رجال الإسناد كلّهم ثقات أو أثبات بحسب القاعدة."
+    else:
+        verdict = f"مَن عُرف منهم ثقات؛ وبقي {unknown} راوٍ لم يُعرفوا في القاعدة."
+    return {"weakest_rank": weakest, "known": known, "unknown": unknown, "verdict": verdict}
+
+
+def analyze_isnad(text: str, rijal: "RijalIndex | None" = None) -> IsnadAnalysis:
     raw = strip_diacritics(text or "")
     narrators: list[Narrator] = []
     via: str | None = None
@@ -86,6 +115,16 @@ def analyze_isnad(text: str) -> IsnadAnalysis:
     has_anana = modes.get("عنعنة", 0) > 0
     reaches_prophet = ("النبي" in raw) or ("رسول الله" in raw) or ("رسول اللـه" in raw)
 
+    narrator_dicts: list[dict] = []
+    matches: list["RijalMatch | None"] = []
+    for narrator in narrators:
+        record = asdict(narrator)
+        if rijal is not None:
+            match = rijal.lookup(narrator.name)
+            matches.append(match)
+            record["rijal"] = match.to_dict() if match else None
+        narrator_dicts.append(record)
+
     notes: list[str] = []
     if has_tahwil:
         notes.append("فيه تحويل (ح): أكثر من طريق في الإسناد.")
@@ -93,14 +132,21 @@ def analyze_isnad(text: str) -> IsnadAnalysis:
         notes.append("في الإسناد عنعنة؛ يُتحقَّق من ثبوت السماع (احتمال التدليس).")
     if len(narrators) < 3:
         notes.append("السند قصير؛ يُنظر في اتصاله.")
-    notes.append("تقويم عدالة الرواة وضبطهم يتطلّب قاعدة بيانات الرجال (غير مُفعَّلة بعد).")
+
+    if rijal is None:
+        assessment = None
+        notes.append("تقويم عدالة الرواة وضبطهم يتطلّب قاعدة بيانات الرجال (مرّر RijalIndex لتفعيله).")
+    else:
+        assessment = _chain_assessment(matches, len(narrators))
+        notes.append("هذا حكمٌ على الرجال فقط؛ وصحّة الحديث تقتضي أيضًا اتصال السند وانتفاء العلّة والشذوذ.")
 
     return IsnadAnalysis(
-        narrators=[asdict(n) for n in narrators],
+        narrators=narrator_dicts,
         length=len(narrators),
         modes=modes,
         has_tahwil=has_tahwil,
         has_anana=has_anana,
         reaches_prophet=reaches_prophet,
         notes=notes,
+        rijal_assessment=assessment,
     )

@@ -43,7 +43,7 @@ providing an API key — no code changes.
 | 0 | Scaffold, config, FastAPI app, CI/tests | ✅ done |
 | 1 | turath.io ingestion (catalog, client, resumable downloader) | ✅ done |
 | 2 | Parsing → structured matn / isnad / grade / citation (multi-edition) | ✅ done |
-| 3 | Enrichment | ◐ takhrij ✅ · rijal DB ☐ |
+| 3 | Enrichment | ◐ takhrij ✅ · rijal gradings (curated seed) ✅ · full رجال DB ☐ |
 | 4 | Search (`/search`, `/hadith/{id}`) | ✅ lexical FTS · semantic (pgvector) scaffolded |
 | 5 | `/ask` (Classical-Arabic, cited) | ✅ extractive · LLM hook ready |
 | 6 | **Scholars' explanations (شروح)** linked to hadith & surfaced in answers | ✅ done |
@@ -127,7 +127,7 @@ uvicorn app.main:app --reload
 | `GET /hadith/{id}` | a single hadith with its citation |
 | `GET /ask?q=…` | the most relevant hadith + grade + the **scholars' شرح** on that exact hadith, cited |
 | `GET /takhrij?hadith_id=…` (or `q=…`) | the hadith's **parallel narrations** across collections |
-| `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators** + flag سماع/عنعنة/تحويل |
+| `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators**, flag سماع/عنعنة/تحويل, and **grade each narrator** (رجال) with a weakest-link verdict |
 
 ```bash
 # examples
@@ -142,6 +142,16 @@ For production search/answers, install the extras and load PostgreSQL:
 pip install -e ".[embeddings,llm]"
 python -m scripts.load_db        # JSONL → Postgres + pgvector (embeds matn & شروح)
 # set LLM_ENABLED=1 (+ a model/key) to have /ask synthesise a grounded answer
+```
+
+**Narrator gradings (رجال).** `/verify-isnad` grades each narrator using a curated,
+attributed seed (`app/rijal/seed.jsonl`, verdicts from تقريب التهذيب; the Companions
+are عدول by consensus). The verdict is structural — a *weakest-link* read of the
+chain — and explicitly not a full تصحيح (which also needs اتصال and absence of علة/شذوذ).
+To grade more narrators, build a fuller رجال JSONL and point `RIJAL_PATH` at it:
+
+```bash
+python -m scripts.build_rijal --input narrators.jsonl --output data/rijal.jsonl
 ```
 
 ## Data source, attribution & ethics

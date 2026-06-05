@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.2
     ollama_api_base: str = "http://localhost:11434"
 
+    # ── Rijal (narrator gradings) ────────────────────────────────────────────
+    # /verify-isnad always uses the bundled curated seed; point this at a full
+    # رجال JSONL (e.g. built from turath cat-26) to grade more narrators.
+    rijal_path: str | None = None
+
     # ── Hadith corpus scope ─────────────────────────────────────────────────
     # turath.io category ids that make up the hadith sciences. Confirmed against
     # the live catalog (files.turath.io/data-v3.json):
