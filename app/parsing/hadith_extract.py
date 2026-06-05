@@ -80,10 +80,14 @@ def _finish(book_id: int, cur: dict, default_grade: str | None) -> ParsedHadith:
 _DASH_PROBE = re.compile(rf"(?:^|\n)[ \t]*{_NUM}\s*-\s")
 
 
-def _detect_marker(pages: list[dict]) -> Pattern[str]:
-    """Pick the marker style for this book by comparing how often each style occurs
-    in a sample of the raw text."""
-    text = "\n".join(p.get("text", "") for p in pages[:40])
+def _detect_marker(pages: list[dict], start_page_id: int | None = None) -> Pattern[str]:
+    """Pick the marker style for this book by comparing how often each style occurs.
+
+    Sample **content** pages only: the editor's muqaddima often contains dash-style
+    numbered lists ("٤ - …") that would otherwise mask the real "• [N]" markers.
+    """
+    content = [p for p in pages if start_page_id is None or p.get("pg", 0) >= start_page_id]
+    text = "\n".join(p.get("text", "") for p in content[:50])
     bullets = text.count("• [")
     dashes = len(_DASH_PROBE.findall(text))
     return _MARKER_BULLET if bullets > 0 and bullets >= dashes else _MARKER_DASH
@@ -102,7 +106,7 @@ def iter_hadith(
     out of sequence): pass the page id where the real numbered text begins.
     """
     pages = list(pages)
-    marker = _detect_marker(pages)
+    marker = _detect_marker(pages, start_page_id)
     current: dict | None = None
     chapter: str | None = None
 
