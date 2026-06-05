@@ -58,8 +58,13 @@ class Settings(BaseSettings):
 
     @property
     def index_path(self) -> Path:
-        """sqlite FTS index built by scripts.index (dev lexical search backend)."""
+        """sqlite FTS index of hadith built by scripts.index (dev search backend)."""
         return self.data_dir / "index.db"
+
+    @property
+    def sharh_index_path(self) -> Path:
+        """sqlite FTS index of commentary passages (dev backend for /ask)."""
+        return self.data_dir / "sharh_index.db"
 
 
 @lru_cache

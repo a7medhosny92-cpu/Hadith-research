@@ -1,0 +1,105 @@
+"""Tests for the /ask retrieval-grounded answer (hadith + linked شرح)."""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.qa import answer_question
+from app.routers.ask import get_sharh_index
+from app.routers.search import get_index
+from app.search import HadithIndex, SharhIndex
+
+HADITH = [
+    {
+        "book_id": 1284, "number": 1,
+        "matn": "إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ", "isnad": "حدثنا الحميدي",
+        "grade": "صحيح", "chapter": "بدء الوحي", "page": 179, "volume": "1",
+    },
+    {
+        "book_id": 1727, "number": 3,
+        "matn": "مَنْ كَذَبَ عَلَيَّ مُتَعَمِّدًا", "isnad": "حدثنا أبو بكر",
+        "grade": "صحيح", "chapter": "المقدمة", "page": 10, "volume": "1",
+    },
+]
+
+SHARH = [
+    {
+        "book_id": 1673, "sharh": "فتح الباري", "base_id": 1284, "base_name": "صحيح البخاري",
+        "hadith_number": 1, "chapter": "بدء الوحي", "page": 11, "page_id": 495,
+        "text": "قوله إنما الأعمال بالنيات أي الأعمال الصالحة، والنية شرط في صحة العمل عند الجمهور.",
+    },
+    {
+        "book_id": 5756, "sharh": "عمدة القاري", "base_id": 1284, "base_name": "صحيح البخاري",
+        "hadith_number": 1, "chapter": "بدء الوحي", "page": 20, "page_id": 510,
+        "text": "النية محلها القلب وهي قصد الشيء مقترنا بفعله.",
+    },
+]
+
+
+@pytest.fixture
+def hadith_index() -> HadithIndex:
+    idx = HadithIndex()
+    idx.add(HADITH)
+    return idx
+
+
+@pytest.fixture
+def sharh_index() -> SharhIndex:
+    idx = SharhIndex()
+    idx.add(SHARH)
+    return idx
+
+
+def test_answer_links_commentary_to_top_hadith(hadith_index, sharh_index):
+    out = answer_question("الأعمال بالنيات", hadith_index, sharh_index)
+    assert out["mode"] == "extractive"
+    assert out["hadith"][0]["number"] == 1
+    # commentary is the one linked to Bukhari #1, surfaced by question relevance
+    assert out["sharh"] and out["sharh"][0]["hadith_number"] == 1
+    assert out["sharh"][0]["sharh"] == "فتح الباري"
+    assert out["hadith"][0]["matn"] in out["answer"]  # matn quoted verbatim
+    assert "فتح الباري" in out["answer"]               # commentary attributed
+
+
+def test_answer_without_match(hadith_index, sharh_index):
+    out = answer_question("السيارات الكهربائية الحديثة", hadith_index, sharh_index)
+    assert out["hadith"] == [] and out["sharh"] == []
+    assert "لم أعثر" in out["answer"]
+
+
+def test_synthesizer_is_used_when_provided(hadith_index, sharh_index):
+    out = answer_question(
+        "النية", hadith_index, sharh_index,
+        synthesize=lambda q, h, s: f"ملخص: {q} (مصادر: {len(h)} حديث، {len(s)} شرح)",
+    )
+    assert out["mode"] == "llm"
+    assert out["answer"].startswith("ملخص: النية")
+
+
+def test_k_sharh_zero_skips_commentary(hadith_index, sharh_index):
+    out = answer_question("الأعمال بالنيات", hadith_index, sharh_index, k_sharh=0)
+    assert out["sharh"] == []
+
+
+# ── API ─────────────────────────────────────────────────────────────────────
+@pytest.fixture
+def client(hadith_index, sharh_index) -> TestClient:
+    app.dependency_overrides[get_index] = lambda: hadith_index
+    app.dependency_overrides[get_sharh_index] = lambda: sharh_index
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+def test_api_ask(client):
+    r = client.get("/ask", params={"q": "الأعمال بالنيات"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["hadith"][0]["collection"] == "صحيح البخاري"
+    assert body["sharh"][0]["sharh"] == "فتح الباري"
+    assert body["hadith"][0]["matn"] in body["answer"]
+
+
+def test_api_ask_requires_question(client):
+    assert client.get("/ask").status_code == 422

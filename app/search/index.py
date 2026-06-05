@@ -45,6 +45,22 @@ CREATE VIRTUAL TABLE IF NOT EXISTS hadith USING fts5(
 );
 """
 
+_SHARH_SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS sharh USING fts5(
+    text_norm,
+    book_id       UNINDEXED,
+    sharh_name    UNINDEXED,
+    base_id       UNINDEXED,
+    base_name     UNINDEXED,
+    hadith_number UNINDEXED,
+    chapter       UNINDEXED,
+    page          UNINDEXED,
+    page_id       UNINDEXED,
+    text          UNINDEXED,
+    tokenize = 'unicode61 remove_diacritics 2'
+);
+"""
+
 
 @dataclass(slots=True)
 class SearchHit:
@@ -201,4 +217,125 @@ def _hit(row: tuple) -> SearchHit:
         id=row[0], book_id=row[1], collection=row[2], number=row[3], matn=row[4],
         isnad=row[5], grade=row[6], chapter=row[7], page=row[8], volume=row[9],
         score=row[10], snippet=row[11],
+    )
+
+
+@dataclass(slots=True)
+class SharhHit:
+    book_id: int
+    sharh: str               # commentary title (identifies the commentator)
+    base_id: int | None
+    base_name: str | None
+    hadith_number: int | None
+    chapter: str | None
+    page: int | None
+    score: float
+    excerpt: str             # focused fragment (full passages can be very long)
+
+    def to_dict(self) -> dict:
+        return {
+            "book_id": self.book_id,
+            "sharh": self.sharh,
+            "base_id": self.base_id,
+            "base_name": self.base_name,
+            "hadith_number": self.hadith_number,
+            "chapter": self.chapter,
+            "page": self.page,
+            "score": round(self.score, 4),
+            "excerpt": self.excerpt,
+        }
+
+
+class SharhIndex:
+    """FTS5 index over commentary passages, linked to the base collection/hadith.
+
+    Powers /ask's "what the scholars said": search the شرح by question terms,
+    optionally constrained to a specific hadith (``base_id`` + ``hadith_number``)."""
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self._con = sqlite3.connect(str(db_path), check_same_thread=False)
+        self._con.executescript(_SHARH_SCHEMA)
+
+    def add(self, passages: Iterable[dict]) -> int:
+        rows = []
+        for p in passages:
+            text = p.get("text") or ""
+            rows.append(
+                (
+                    normalize_for_search(text),
+                    p.get("book_id"), p.get("sharh"), p.get("base_id"),
+                    p.get("base_name"), p.get("hadith_number"), p.get("chapter"),
+                    p.get("page"), p.get("page_id"), text,
+                )
+            )
+        self._con.executemany(
+            "INSERT INTO sharh (text_norm, book_id, sharh_name, base_id, base_name, "
+            "hadith_number, chapter, page, page_id, text) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            rows,
+        )
+        self._con.commit()
+        return len(rows)
+
+    @classmethod
+    def build_from_processed(
+        cls, sharh_dir: str | Path, db_path: str | Path = ":memory:"
+    ) -> "SharhIndex":
+        index = cls(db_path)
+        directory = Path(sharh_dir)
+        if directory.exists():
+            for jsonl in sorted(directory.glob("*.jsonl")):
+                index.add(_read_jsonl(jsonl))
+        return index
+
+    def search(
+        self,
+        query: str,
+        *,
+        base_id: int | None = None,
+        hadith_number: int | None = None,
+        limit: int = 5,
+    ) -> list[SharhHit]:
+        terms = _tokens(query)
+        if not terms:
+            return []
+        filters, params = ["sharh MATCH ?"], [""]
+        if base_id is not None:
+            filters.append("base_id = ?")
+            params.append(base_id)
+        if hadith_number is not None:
+            filters.append("hadith_number = ?")
+            params.append(hadith_number)
+        sql = (
+            "SELECT book_id, sharh_name, base_id, base_name, hadith_number, chapter, page, "
+            "-bm25(sharh) AS score, snippet(sharh, 0, '«', '»', '…', 24) AS snip "
+            f"FROM sharh WHERE {' AND '.join(filters)} ORDER BY score DESC LIMIT ?"
+        )
+        for joiner in (" AND ", " OR "):
+            params[0] = joiner.join(f'"{t}"' for t in terms)
+            rows = self._con.execute(sql, [*params, limit]).fetchall()
+            if rows or joiner == " OR ":
+                return [_sharh_hit(row) for row in rows]
+        return []
+
+    def by_hadith(self, base_id: int, hadith_number: int, *, limit: int = 3) -> list[SharhHit]:
+        """All commentary linked to a hadith, regardless of query (truncated excerpt)."""
+        rows = self._con.execute(
+            "SELECT book_id, sharh_name, base_id, base_name, hadith_number, chapter, page, "
+            "0.0 AS score, substr(text, 1, 500) AS snip FROM sharh "
+            "WHERE base_id = ? AND hadith_number = ? LIMIT ?",
+            (base_id, hadith_number, limit),
+        ).fetchall()
+        return [_sharh_hit(row) for row in rows]
+
+    def count(self) -> int:
+        return self._con.execute("SELECT count(*) FROM sharh").fetchone()[0]
+
+    def close(self) -> None:
+        self._con.close()
+
+
+def _sharh_hit(row: tuple) -> SharhHit:
+    return SharhHit(
+        book_id=row[0], sharh=row[1], base_id=row[2], base_name=row[3],
+        hadith_number=row[4], chapter=row[5], page=row[6], score=row[7], excerpt=row[8],
     )
