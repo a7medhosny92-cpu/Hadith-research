@@ -32,7 +32,10 @@ class Settings(BaseSettings):
 
     # ── Embeddings / LLM ────────────────────────────────────────────────────
     embedding_model: str = "Omartificial-Intelligence-Space/Arabic-Triplet-Matryoshka-V2"
+    embedding_dim: int = 768
+    llm_enabled: bool = False  # off by default → /ask is extractive (no LLM needed)
     llm_model: str = "ollama/qwen2.5:7b"
+    llm_temperature: float = 0.2
     ollama_api_base: str = "http://localhost:11434"
 
     # ── Hadith corpus scope ─────────────────────────────────────────────────

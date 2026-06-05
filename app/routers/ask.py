@@ -13,10 +13,21 @@ from fastapi import APIRouter, Depends, Query
 
 from app.config import get_settings
 from app.qa import answer_question
+from app.qa.answer import Synthesizer
 from app.routers.search import get_index
 from app.search import HadithIndex, SharhIndex
 
 router = APIRouter(tags=["ask"])
+
+
+def get_synthesizer() -> Synthesizer | None:
+    """The LLM synthesizer when enabled in settings, else None (extractive answers)."""
+    settings = get_settings()
+    if not settings.llm_enabled:
+        return None
+    from app.qa.llm import litellm_synthesizer  # lazy: optional 'llm' extra
+
+    return litellm_synthesizer(settings)
 
 
 @lru_cache(maxsize=1)
@@ -37,7 +48,9 @@ def ask(
     k_sharh: int = Query(3, ge=0, le=10),
     hadith_index: HadithIndex = Depends(get_index),
     sharh_index: SharhIndex = Depends(get_sharh_index),
+    synthesize: Synthesizer | None = Depends(get_synthesizer),
 ) -> dict:
     return answer_question(
-        q, hadith_index, sharh_index, k_hadith=k_hadith, k_sharh=k_sharh
+        q, hadith_index, sharh_index,
+        k_hadith=k_hadith, k_sharh=k_sharh, synthesize=synthesize,
     )
