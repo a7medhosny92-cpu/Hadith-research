@@ -10,8 +10,9 @@ Nessuna API a pagamento. Include:
 - **4 template**: `classic`, `quiz`, `top5`, `storytelling` (strutture e palette diverse)
 - **Scene dinamiche**: movimento Ken Burns (zoom/pan), **crossfade veri** tra le scene
   e **testo animato karaoke** sincronizzato con la voce
-- **Multilingua**: script, sottotitoli e hashtag in `it` / `en` / `es` (altre lingue
-  via TTS), voci neurali per lingua
+- **Multilingua**: script, sottotitoli e hashtag in `it` / `en` / `es` / **`ar` (arabo
+  RTL)** (altre lingue via TTS), con shaping e bidi corretti
+- **Selettore di voce**: più voci neurali per lingua, scelta da CLI / API / web
 - **B-roll**: usa clip video locali (`assets/broll/`) come sfondo in movimento
 - **Voce neurale Piper** (offline, naturale) con fallback automatico a espeak-ng
 - **Immagini AI** opzionali via Stable Diffusion locale (stile `ai`) con fallback a slide
@@ -37,14 +38,16 @@ Dato un argomento (es. *"la produttività"*) genera automaticamente:
 ## Requisiti
 
 ```bash
-# strumenti di sistema
-apt-get install -y ffmpeg espeak-ng
+# strumenti di sistema (libraqm + font Noto servono per l'arabo/RTL)
+apt-get install -y ffmpeg espeak-ng fonts-noto-core libraqm0
 
 # dipendenze Python
 pip install -r requirements.txt
 
-# voci neurali Piper (consigliate): scarica it, en, es
-python3 scripts/download_voices.py it en es
+# voci neurali Piper (consigliate): scarica it, en, es, ar
+python3 scripts/download_voices.py it en es ar
+# tutte le voci di una lingua (per il selettore):
+python3 scripts/download_voices.py --all it en
 ```
 
 > Senza `ffmpeg`/voce la pipeline funziona comunque e produce script,
@@ -62,13 +65,18 @@ L'immagine include FFmpeg, espeak-ng e la voce Piper italiana.
 
 ### Lingue e voce (TTS)
 
-Lo script viene scritto nella lingua scelta (pacchetti completi `it`, `en`, `es`
-in `app/pipeline/i18n.py`; le altre usano testi inglesi come fallback). Per ogni
-lingua viene usata la voce neurale Piper corrispondente; se non è scaricata, si
-ripiega su espeak-ng (che copre molte lingue).
+Lo script viene scritto nella lingua scelta (pacchetti completi `it`, `en`, `es`,
+`ar` in `app/pipeline/i18n.py`; le altre usano testi inglesi come fallback).
+L'**arabo** è RTL: viene reso con shaping e ordine bidi corretti (via libraqm in
+Pillow per i frame, e libass per i sottotitoli karaoke).
+
+Ogni lingua può avere più voci neurali Piper, selezionabili (`--voice`, campo
+`voice` nell'API, menu nel frontend). `GET /voices` elenca quelle scaricate. Se
+una voce non è disponibile si ripiega su espeak-ng.
 
 ```bash
-python3 scripts/download_voices.py it en es fr de pt   # scarica le voci
+python3 scripts/download_voices.py it en es ar         # voce di default per lingua
+python3 scripts/download_voices.py --all it            # tutte le voci italiane
 export TTS_ENGINE=piper            # piper | espeak | auto (default)
 export PIPER_DATA_DIR=models/piper # dove cercare le voci .onnx
 ```
@@ -94,9 +102,13 @@ python3 cli.py "la produttività" --points 3 --lang it --seed 7 --out output/sam
 python3 cli.py "il caffè" --template quiz
 python3 cli.py "lo spazio" --template top5
 python3 cli.py "la disciplina" --template storytelling
-# multilingua (it/en/es completi, altre lingue via TTS):
+# multilingua (it/en/es/ar completi, altre lingue via TTS):
 python3 cli.py "productivity" --lang en
 python3 cli.py "productividad" --lang es
+python3 cli.py "الإنتاجية" --lang ar          # arabo (RTL)
+# selettore di voce:
+python3 cli.py --list-voices                  # elenca le voci scaricate
+python3 cli.py "il caffè" --voice it_IT-riccardo-x_low
 # transizioni: crossfade vero (default) o stacco netto:
 python3 cli.py "la produttività" --transition cut
 # scene statiche (niente movimento/karaoke):
@@ -109,7 +121,7 @@ python3 cli.py "il caffè" --music assets/musica.mp3
 ```
 
 Template: `classic`, `quiz`, `top5`, `storytelling`. Lingue complete: `it`, `en`,
-`es` (le altre usano comunque la voce TTS, con testi in inglese come fallback).
+`es`, `ar` (le altre usano comunque la voce TTS, con testi in inglese come fallback).
 
 ### Web app + API (FastAPI)
 
@@ -122,7 +134,8 @@ uvicorn app.main:app --reload
 |---|---|---|
 | `GET`  | `/` | interfaccia web (frontend) |
 | `GET`  | `/health` | stato + capacità (ffmpeg / tts / stable_diffusion) |
-| `POST` | `/videos` | crea un job: `{"topic":"...","template":"top5","num_points":3,"lang":"en","style":"slide","animate":true,"transition":"crossfade","broll":false}` |
+| `GET`  | `/voices` | voci scaricate per lingua (per il selettore) |
+| `POST` | `/videos` | crea un job: `{"topic":"...","template":"top5","lang":"ar","voice":null,"style":"slide","animate":true,"transition":"crossfade","broll":false}` |
 | `GET`  | `/videos/{id}` | stato del job + link agli artefatti |
 | `GET`  | `/videos/{id}/files/{name}` | scarica un artefatto (es. `video.mp4`) |
 
@@ -150,8 +163,8 @@ app/
 └── pipeline/
     ├── script_gen.py    # argomento → script (hook/punti/cta)
     ├── templates.py     # template: classic / quiz / top5 / storytelling
-    ├── i18n.py          # language pack (it / en / es) per gli script
-    ├── tts.py           # testo → voce (Piper / espeak-ng), voci per lingua
+    ├── i18n.py          # language pack (it / en / es / ar) per gli script
+    ├── tts.py           # testo → voce (Piper / espeak-ng), catalogo voci per lingua
     ├── visuals.py       # scena → frame 1080×1920 (Pillow)
     ├── image_gen.py     # sfondi AI opzionali (Stable Diffusion)
     ├── broll.py         # clip b-roll locali come sfondo

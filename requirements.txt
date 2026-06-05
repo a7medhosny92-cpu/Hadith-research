@@ -7,6 +7,10 @@ pytest>=8.0
 # Voce neurale offline (consigliata). Fallback automatico a espeak-ng se assente.
 piper-tts>=1.2
 
+# Fallback per lo shaping arabo/RTL quando Pillow non ha libraqm.
+arabic-reshaper>=3.0
+python-bidi>=0.4
+
 # Immagini AI realistiche (opzionale, consigliata una GPU CUDA).
 # Decommentare per abilitare lo stile "ai":
 # torch

@@ -23,6 +23,7 @@ class Job:
     num_points: int
     lang: str
     seed: Optional[int]
+    voice: Optional[str] = None
     style: str = "slide"
     template: str = "classic"
     animate: bool = True
@@ -43,14 +44,13 @@ class JobStore:
         self._lock = threading.Lock()
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
 
-    def submit(self, topic: str, num_points: int, lang: str,
-               seed: Optional[int], style: str = "slide",
-               template: str = "classic", animate: bool = True,
-               broll: bool = False, transition: str = "crossfade") -> Job:
+    def submit(self, req) -> Job:
+        """Create and queue a job from a VideoRequest-like object."""
         job_id = uuid.uuid4().hex[:12]
-        job = Job(id=job_id, topic=topic, num_points=num_points, lang=lang,
-                  seed=seed, style=style, template=template, animate=animate,
-                  broll=broll, transition=transition)
+        job = Job(id=job_id, topic=req.topic, num_points=req.num_points,
+                  lang=req.lang, seed=req.seed, voice=req.voice, style=req.style,
+                  template=req.template, animate=req.animate, broll=req.broll,
+                  transition=req.transition)
         with self._lock:
             self._jobs[job_id] = job
         self._pool.submit(self._run, job)
@@ -76,6 +76,7 @@ class JobStore:
                 workdir=self.workdir(job.id),
                 num_points=job.num_points,
                 lang=job.lang,
+                voice=job.voice,
                 seed=job.seed,
                 style=job.style,
                 template=job.template,

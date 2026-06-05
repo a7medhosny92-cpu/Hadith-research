@@ -35,6 +35,12 @@ def ui() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/voices")
+def voices() -> dict:
+    """Downloaded Piper voices grouped by language, for the voice selector."""
+    return tts.all_voices()
+
+
 @app.get("/health")
 def health() -> dict:
     return {
@@ -52,8 +58,7 @@ def health() -> dict:
 
 @app.post("/videos", response_model=JobStatus, status_code=202)
 def create_video_job(req: VideoRequest) -> JobStatus:
-    job = store.submit(req.topic, req.num_points, req.lang, req.seed, req.style,
-                       req.template, req.animate, req.broll, req.transition)
+    job = store.submit(req)
     return _status(job)
 
 

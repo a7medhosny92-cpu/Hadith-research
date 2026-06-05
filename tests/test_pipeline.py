@@ -141,6 +141,28 @@ def test_broll_picks_from_library(tmp_path: Path, monkeypatch):
     broll._library.cache_clear()
 
 
+def test_arabic_script_is_rtl_and_localized():
+    assert "ar" in i18n.SUPPORTED and i18n.is_rtl("ar")
+    s = build_script("الإنتاجية", template="classic", num_points=3, seed=1, lang="ar")
+    assert s.scenes[0].overlay == i18n.get("ar")["labels"]["wait"]
+    # the narration is Arabic script
+    from app.pipeline.visuals import _is_arabic
+    assert _is_arabic(s.narration)
+
+
+def test_voice_selector_lists_only_downloaded(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(tts, "PIPER_DATA_DIR", tmp_path)
+    monkeypatch.setattr(tts, "PIPER_VOICES",
+                        {"it": ["it_IT-paola-medium", "it_IT-riccardo-x_low"],
+                         "en": ["en_US-amy-medium"]})
+    (tmp_path / "it_IT-paola-medium.onnx").write_bytes(b"x")  # only this one exists
+    assert tts.list_voices("it") == ["it_IT-paola-medium"]
+    assert tts.list_voices("en") == []
+    assert tts.all_voices() == {"it": ["it_IT-paola-medium"]}
+    # an explicit voice that isn't downloaded falls back to the first available
+    assert tts._resolve_voice("it", "it_IT-riccardo-x_low") == "it_IT-paola-medium"
+
+
 @pytest.mark.skipif(not tts.available(), reason="espeak-ng non installato")
 def test_tts_creates_audio(tmp_path: Path):
     wav = tts.synthesize("prova della sintesi vocale", tmp_path / "v.wav", lang="it")

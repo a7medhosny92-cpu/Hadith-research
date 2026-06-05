@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from . import tts, assembler, image_gen, broll
+from . import tts, assembler, image_gen, broll, i18n
 from .script_gen import Script
 from .templates import build_script
 from .subtitles import build_srt_timed, build_ass_timed
@@ -60,6 +60,7 @@ def create_video(
     workdir: Path,
     num_points: int = 3,
     lang: str = "it",
+    voice: Optional[str] = None,
     music: Optional[Path] = None,
     seed: Optional[int] = None,
     style: str = "slide",
@@ -80,10 +81,10 @@ def create_video(
 
     # 1) voice-over per scene (sets the real per-scene duration)
     progress("tts", 0.20)
-    if tts.available(lang):
+    if tts.available(lang, voice):
         for s in script.scenes:
             wav = workdir / f"voice_{s.index:02d}.wav"
-            tts.synthesize(s.text, wav, lang=lang)
+            tts.synthesize(s.text, wav, lang=lang, voice=voice)
             s.seconds = round(tts.wav_duration(wav), 3)
             result.audio_clips.append(wav)
     else:
@@ -147,7 +148,10 @@ def create_video(
     ]
     result.subtitles = build_srt_timed(events, workdir / "captions.srt")
     if animate:
-        result.subtitles_ass = build_ass_timed(events, workdir / "captions.ass")
+        # libass shapes/bidis RTL natively, it just needs an Arabic-capable font
+        ass_font = "Noto Naskh Arabic" if i18n.is_rtl(lang) else "DejaVu Sans"
+        result.subtitles_ass = build_ass_timed(events, workdir / "captions.ass",
+                                               font=ass_font)
     (workdir / "script.json").write_text(
         json.dumps(script.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -163,9 +167,11 @@ def create_video(
             )
             for i in range(len(script.scenes))
         ]
+        # Captions: when animating we burn the ASS karaoke track; when static the
+        # caption is already baked into the frame, so we don't also burn the SRT
+        # (that would double up). The .srt is still written as a sidecar file.
         result.video = assembler.assemble(
             clips, workdir / "video.mp4",
-            subtitles=result.subtitles,
             subtitles_ass=result.subtitles_ass,
             music=music, motion=animate,
             transition=transition, transition_seconds=transition_seconds)

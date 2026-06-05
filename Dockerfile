@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # System tools: FFmpeg (montaggio) + espeak-ng (fallback voce)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ffmpeg espeak-ng fonts-dejavu-core \
+        ffmpeg espeak-ng fonts-dejavu-core fonts-noto-core libraqm0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -13,8 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Voci neurali Piper (it, en, es). Modifica l'elenco per altre lingue.
-RUN python3 scripts/download_voices.py it en es
+# Voci neurali Piper (it, en, es, ar). Modifica l'elenco per altre lingue.
+RUN python3 scripts/download_voices.py it en es ar
 
 ENV PIPER_DATA_DIR=/app/models/piper \
     VIDEO_OUTPUT_ROOT=/app/output/jobs

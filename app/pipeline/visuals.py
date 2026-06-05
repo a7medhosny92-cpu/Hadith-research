@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import List, Tuple
 import math
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, features
+
+# Pillow with libraqm shapes complex scripts (Arabic joining + bidi) natively.
+_RAQM = features.check("raqm")
 
 # Vertical short-form format (TikTok / Reels / Shorts).
 WIDTH, HEIGHT = 1080, 1920
@@ -25,8 +28,42 @@ _PALETTES = {
 }
 
 
-def _font(size: int, bold: bool = True) -> ImageFont.FreeTypeFont:
-    candidates = [
+_ARABIC_FONTS = [
+    "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+]
+
+
+def _is_arabic(s: str) -> bool:
+    return any("؀" <= ch <= "ۿ" or "ݐ" <= ch <= "ݿ" for ch in s)
+
+
+def _shape(s: str) -> str:
+    """Reshape + bidi-reorder Arabic (fallback for when libraqm is unavailable)."""
+    if not _is_arabic(s):
+        return s
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        return get_display(arabic_reshaper.reshape(s))
+    except Exception:
+        return s
+
+
+def _prep(s: str) -> tuple[str, str | None]:
+    """Return (string_to_draw, direction) for correct RTL/joined rendering.
+
+    With libraqm we hand Pillow the raw text plus an "rtl" direction and let it
+    shape; without it we pre-shape the glyphs ourselves and draw left-to-right.
+    """
+    if not _is_arabic(s):
+        return s, None
+    return (s, "rtl") if _RAQM else (_shape(s), None)
+
+
+def _font(size: int, bold: bool = True, arabic: bool = False) -> ImageFont.FreeTypeFont:
+    candidates = (_ARABIC_FONTS if arabic else []) + [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold
         else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
@@ -53,10 +90,13 @@ def _vertical_gradient(top: Tuple[int, int, int], bottom: Tuple[int, int, int]) 
 
 def _wrap(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont,
           max_width: int) -> List[str]:
+    # Lines are returned in logical order; measuring uses the prepared (shaped/
+    # directional) form so RTL and joined scripts wrap correctly.
     words, lines, cur = text.split(), [], ""
     for w in words:
         trial = (cur + " " + w).strip()
-        if draw.textlength(trial, font=font) <= max_width:
+        s, d = _prep(trial)
+        if draw.textlength(s, font=font, direction=d) <= max_width:
             cur = trial
         else:
             if cur:
@@ -67,11 +107,12 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont,
     return lines
 
 
-def _text_with_shadow(draw, xy, text, font, fill, anchor="mm"):
+def _text_with_shadow(draw, xy, text, font, fill, anchor="mm", direction=None):
     x, y = xy
     for dx, dy in ((3, 3), (-3, 3), (3, -3), (-3, -3)):
-        draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0), anchor=anchor)
-    draw.text((x, y), text, font=font, fill=fill, anchor=anchor)
+        draw.text((x + dx, y + dy), text, font=font, fill=(0, 0, 0),
+                  anchor=anchor, direction=direction)
+    draw.text((x, y), text, font=font, fill=fill, anchor=anchor, direction=direction)
 
 
 def _fit_cover(im: Image.Image) -> Image.Image:
@@ -109,24 +150,26 @@ def render_scene(kind: str, text: str, overlay: str, out_path: Path,
     max_w = WIDTH - 2 * margin
 
     # --- overlay badge (top) ---
-    badge_font = _font(96)
     if overlay:
+        badge_font = _font(96, arabic=_is_arabic(overlay))
+        s, d = _prep(overlay)
         pad = 30
-        bw = draw.textlength(overlay, font=badge_font)
+        bw = draw.textlength(s, font=badge_font, direction=d)
         bx0, by0 = margin, 150
         draw.rounded_rectangle(
             [bx0, by0, bx0 + bw + 2 * pad, by0 + 150],
             radius=30, fill=accent)
         fill = (255, 255, 255) if accent != (255, 255, 255) else (20, 20, 30)
-        draw.text((bx0 + pad, by0 + 25), overlay, font=badge_font, fill=fill)
+        draw.text((bx0 + pad, by0 + 25), s, font=badge_font, fill=fill, direction=d)
 
     # --- main caption (center), auto-sized to fit ---
     # When `with_caption` is False the text is left to an animated subtitle track
     # (karaoke) rendered later by FFmpeg, so we don't bake it into the frame.
     if with_caption:
+        arabic = _is_arabic(text)
         size = 110
         while size > 48:
-            cap_font = _font(size)
+            cap_font = _font(size, arabic=arabic)
             lines = _wrap(draw, text, cap_font, max_w)
             line_h = int(size * 1.25)
             block_h = line_h * len(lines)
@@ -136,7 +179,9 @@ def render_scene(kind: str, text: str, overlay: str, out_path: Path,
 
         y = (HEIGHT - block_h) // 2 + line_h // 2
         for line in lines:
-            _text_with_shadow(draw, (WIDTH // 2, y), line, cap_font, (255, 255, 255))
+            s, d = _prep(line)
+            _text_with_shadow(draw, (WIDTH // 2, y), s, cap_font,
+                              (255, 255, 255), direction=d)
             y += line_h
 
     # --- progress dots (bottom) ---

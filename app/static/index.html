@@ -71,7 +71,12 @@
           <option value="it" selected>Italiano</option>
           <option value="en">English</option>
           <option value="es">Español</option>
+          <option value="ar">العربية</option>
         </select>
+      </div>
+      <div>
+        <label>Voce</label>
+        <select id="voice"><option value="">Predefinita</option></select>
       </div>
     </div>
     <div class="row">
@@ -139,6 +144,22 @@ async function loadCaps() {
 }
 loadCaps();
 
+let VOICES = {};
+async function loadVoices() {
+  try { VOICES = await (await fetch('/voices')).json(); } catch (e) { VOICES = {}; }
+  refreshVoices();
+}
+function refreshVoices() {
+  const lang = $('lang').value;
+  const list = VOICES[lang] || [];
+  const sel = $('voice');
+  sel.innerHTML = '<option value="">Predefinita</option>' +
+    list.map(v => `<option value="${v}">${v}</option>`).join('');
+  sel.disabled = list.length === 0;
+}
+$('lang').addEventListener('change', refreshVoices);
+loadVoices();
+
 $('go').addEventListener('click', startJob);
 
 async function startJob() {
@@ -151,6 +172,7 @@ async function startJob() {
     topic: $('topic').value.trim(),
     num_points: parseInt($('points').value, 10),
     lang: $('lang').value,
+    voice: $('voice').value || null,
     style: $('style').value,
     template: $('template').value,
     animate: $('animate').value === 'true',
