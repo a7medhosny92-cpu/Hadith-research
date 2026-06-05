@@ -42,3 +42,7 @@ def levels() -> dict:
 
 def vocabulary() -> dict:
     return _load("vocabulary")
+
+
+def nahw() -> dict:
+    return _load("nahw")

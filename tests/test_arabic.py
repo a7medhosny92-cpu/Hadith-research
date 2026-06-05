@@ -6,7 +6,7 @@ import unicodedata
 
 import pytest
 
-from app.arabic import data, phonology, tajweed, morphology
+from app.arabic import data, phonology, tajweed, morphology, iraab
 
 
 def _n(s: str) -> str:
@@ -162,3 +162,65 @@ def test_identify_candidates():
     # a bare 3-letter skeleton is ambiguous between Forms I and II
     forms = {c["form"] for c in morphology.identify("كتب")["candidates"]}
     assert {1, 2} <= forms
+
+
+# --- iʿrāb (naḥw) -----------------------------------------------------------
+
+def _funcs(sentence):
+    return [(w.bare, w.function, w.read_case, w.expected_case) for w in
+            iraab.analyze(sentence).words]
+
+
+def test_read_case_from_diacritics():
+    assert iraab.read_case("الْوَلَدُ")[0] == iraab.RAF
+    assert iraab.read_case("الْكِتَابَ")[0] == iraab.NASB
+    assert iraab.read_case("الْبَيْتِ")[0] == iraab.JARR
+    assert iraab.read_case("مُجْتَهِدًا")[0] == iraab.NASB   # skip silent tanwīn-alif
+
+
+def test_verbal_sentence_fail_and_mafool():
+    a = iraab.analyze("قَرَأَ الْوَلَدُ الْكِتَابَ")
+    assert a.kind == "جملة فعلية"
+    assert (a.words[1].function, a.words[1].read_case) == ("فاعل", iraab.RAF)
+    assert (a.words[2].function, a.words[2].read_case) == ("مفعول به", iraab.NASB)
+    assert a.words[1].ok and a.words[2].ok
+
+
+def test_nominal_sentence_mubtada_khabar():
+    a = iraab.analyze("الْوَلَدُ مُجْتَهِدٌ")
+    assert a.kind == "جملة اسمية"
+    assert [w.function for w in a.words] == ["مبتدأ", "خبر"]
+    assert all(w.read_case == iraab.RAF and w.ok for w in a.words)
+
+
+def test_inna_and_sisters():
+    a = iraab.analyze("إِنَّ اللَّهَ غَفُورٌ")
+    assert a.words[1].function == "اسم إنّ" and a.words[1].expected_case == iraab.NASB
+    assert a.words[2].function == "خبر إنّ" and a.words[2].expected_case == iraab.RAF
+    assert a.words[1].ok and a.words[2].ok
+
+
+def test_kana_and_sisters():
+    a = iraab.analyze("كَانَ الطَّالِبُ مُجْتَهِدًا")
+    assert a.words[1].function == "اسم كان" and a.words[1].read_case == iraab.RAF
+    assert a.words[2].function == "خبر كان" and a.words[2].read_case == iraab.NASB
+    assert a.words[1].ok and a.words[2].ok
+
+
+def test_jarr_and_idafa():
+    assert ("البيت", "اسم مجرور", iraab.JARR, iraab.JARR) in _funcs("فِي الْبَيْتِ")
+    a = iraab.analyze("كِتَابُ الْوَلَدِ")
+    assert a.words[1].function == "مضاف إليه" and a.words[1].read_case == iraab.JARR
+
+
+def test_iraab_flags_wrong_case():
+    # الكتابُ as object should be naṣb; written marfūʿ → flagged as a mismatch
+    a = iraab.analyze("قَرَأَ الْوَلَدُ الْكِتَابُ")
+    obj = a.words[2]
+    assert obj.function == "مفعول به" and obj.expected_case == iraab.NASB
+    assert obj.read_case == iraab.RAF and obj.ok is False
+
+
+def test_madi_verb_is_mabni_no_case():
+    a = iraab.analyze("ذَهَبَ الْوَلَدُ")
+    assert a.words[0].pos == "فعل" and a.words[0].read_case is None

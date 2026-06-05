@@ -5,13 +5,14 @@
     python3 arabic_cli.py levels
     python3 arabic_cli.py conjugate ك ت ب 1
     python3 arabic_cli.py word استغفر
+    python3 arabic_cli.py iraab "ذَهَبَ الْوَلَدُ إِلَى الْمَدْرَسَةِ"
 """
 
 from __future__ import annotations
 
 import sys
 
-from app.arabic import data, phonology, tajweed, morphology
+from app.arabic import data, phonology, tajweed, morphology, iraab
 
 
 def cmd_tajweed(text: str) -> None:
@@ -85,6 +86,22 @@ def cmd_word(word: str) -> None:
     print()
 
 
+def cmd_iraab(sentence: str) -> None:
+    a = iraab.analyze(sentence)
+    print(f"\n  {sentence}\n  [{a.kind}]\n")
+    for w in a.words:
+        if w.ok is None:
+            chk = ""
+        elif w.ok:
+            chk = "✓"
+        else:
+            chk = f"✗ atteso {w.expected_case}"
+        case = w.read_case or "—"
+        note = f"  ({w.note})" if w.note else ""
+        print(f"  {w.text:16} {w.pos:4} {w.function:26} {case:5} {chk}{note}")
+    print()
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(__doc__)
@@ -100,6 +117,8 @@ def main() -> None:
         cmd_conjugate(sys.argv[2:])
     elif cmd == "word" and len(sys.argv) > 2:
         cmd_word(sys.argv[2])
+    elif cmd == "iraab" and len(sys.argv) > 2:
+        cmd_iraab(sys.argv[2])
     else:
         print(__doc__)
 
