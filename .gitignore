@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data dir is entirely runtime: downloaded corpus, processed output, logs, local DB.
+# Never commit any of it (the corpus is turath.io's, not ours to redistribute).
+/data/
+*.db
+*.sqlite3
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
