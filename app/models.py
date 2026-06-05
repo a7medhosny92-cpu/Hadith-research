@@ -14,6 +14,10 @@ class VideoRequest(BaseModel):
     lang: str = Field("it", description="Lingua TTS (es. it, en, es)")
     style: str = Field("slide", pattern="^(slide|ai)$",
                        description="Stile visivo: 'slide' (gradienti) o 'ai' (Stable Diffusion)")
+    template: str = Field("classic", pattern="^(classic|quiz|top5|storytelling)$",
+                          description="Template del video")
+    animate: bool = Field(True, description="Movimento Ken Burns + testo animato karaoke")
+    broll: bool = Field(False, description="Usa clip b-roll da assets/broll come sfondo")
     seed: Optional[int] = Field(None, description="Seed per output riproducibile")
 
 

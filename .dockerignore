@@ -1,0 +1,11 @@
+.git
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+output/
+models/
+assets/broll/*.mp4
+assets/broll/*.mov
+assets/broll/*.webm

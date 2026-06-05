@@ -7,8 +7,13 @@ Shorts: script → voce → frame → sottotitoli → `.mp4`.
 Nessuna API a pagamento. Include:
 
 - **Frontend web** servito da FastAPI (scrivi argomento → genera → anteprima → download)
+- **4 template**: `classic`, `quiz`, `top5`, `storytelling` (strutture e palette diverse)
+- **Scene dinamiche**: movimento Ken Burns (zoom/pan), dissolvenze e **testo animato
+  karaoke** sincronizzato con la voce
+- **B-roll**: usa clip video locali (`assets/broll/`) come sfondo in movimento
 - **Voce neurale Piper** (offline, naturale) con fallback automatico a espeak-ng
 - **Immagini AI** opzionali via Stable Diffusion locale (stile `ai`) con fallback a slide
+- **Docker**: build e avvio con un comando
 - **FFmpeg** per il montaggio e **Pillow** per la grafica
 
 Ogni modulo è "pluggable": puoi sostituire i backend (es. un LLM locale per gli
@@ -43,6 +48,16 @@ python3 -m piper.download_voices it_IT-paola-medium --data-dir models/piper
 > Senza `ffmpeg`/voce la pipeline funziona comunque e produce script,
 > frame, storyboard e sottotitoli (salta solo voce e `.mp4`).
 
+### Docker (tutto incluso)
+
+```bash
+docker build -t viral-video .
+docker run -p 8000:8000 viral-video
+# apri http://localhost:8000
+```
+
+L'immagine include FFmpeg, espeak-ng e la voce Piper italiana.
+
 ### Motore voce (TTS)
 
 Selezione automatica (Piper se disponibile, altrimenti espeak-ng). Override:
@@ -69,11 +84,20 @@ export SD_DEVICE=cuda                 # cuda | cpu | auto
 
 ```bash
 python3 cli.py "la produttività" --points 3 --lang it --seed 7 --out output/sample
-# stile immagini AI (richiede GPU):
+# template diversi:
+python3 cli.py "il caffè" --template quiz
+python3 cli.py "lo spazio" --template top5
+python3 cli.py "la disciplina" --template storytelling
+# scene statiche (niente movimento/karaoke):
+python3 cli.py "la produttività" --no-animate
+# sfondo b-roll (clip in assets/broll/) e immagini AI (richiede GPU):
+python3 cli.py "il mare" --broll
 python3 cli.py "lo spazio" --style ai
-# con musica di sottofondo opzionale:
+# musica di sottofondo opzionale:
 python3 cli.py "il caffè" --music assets/musica.mp3
 ```
+
+Template disponibili: `classic`, `quiz`, `top5`, `storytelling`.
 
 ### Web app + API (FastAPI)
 
@@ -86,7 +110,7 @@ uvicorn app.main:app --reload
 |---|---|---|
 | `GET`  | `/` | interfaccia web (frontend) |
 | `GET`  | `/health` | stato + capacità (ffmpeg / tts / stable_diffusion) |
-| `POST` | `/videos` | crea un job: `{"topic": "...", "num_points": 3, "lang": "it", "style": "slide"}` |
+| `POST` | `/videos` | crea un job: `{"topic":"...","template":"top5","num_points":3,"lang":"it","style":"slide","animate":true,"broll":false}` |
 | `GET`  | `/videos/{id}` | stato del job + link agli artefatti |
 | `GET`  | `/videos/{id}/files/{name}` | scarica un artefatto (es. `video.mp4`) |
 
@@ -113,14 +137,18 @@ app/
 │   └── index.html       # interfaccia web
 └── pipeline/
     ├── script_gen.py    # argomento → script (hook/punti/cta)
+    ├── templates.py     # template: classic / quiz / top5 / storytelling
     ├── tts.py           # testo → voce (Piper / espeak-ng)
     ├── visuals.py       # scena → frame 1080×1920 (Pillow)
     ├── image_gen.py     # sfondi AI opzionali (Stable Diffusion)
-    ├── subtitles.py     # scene → .srt
-    ├── assembler.py     # frame + voce + sottotitoli → .mp4 (ffmpeg)
+    ├── broll.py         # clip b-roll locali come sfondo
+    ├── subtitles.py     # scene → .srt + .ass (karaoke animato)
+    ├── assembler.py     # frame + voce + sottotitoli → .mp4 (ffmpeg, Ken Burns)
     └── orchestrator.py  # pipeline end-to-end
+assets/broll/            # metti qui le tue clip b-roll
 cli.py                   # entry point a riga di comando
 demo.py                  # demo offline (senza ffmpeg/tts)
+Dockerfile               # build/run con un comando
 tests/                   # pytest (salta gli stage senza i binari)
 ```
 

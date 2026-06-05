@@ -19,10 +19,11 @@ class Scene:
     """A single beat of the video."""
 
     index: int
-    kind: str              # "hook" | "point" | "cta"
+    kind: str              # hook | point | cta | question | answer | rank | intro | outro | beat
     text: str              # the on-screen / spoken line
     overlay: str = ""      # short caption burned over the visual
     seconds: float = 0.0   # estimated duration, filled in later
+    palette: tuple | None = None  # optional (top, bottom, accent) RGB override
 
 
 @dataclass
@@ -31,6 +32,7 @@ class Script:
     title: str
     hashtags: List[str]
     scenes: List[Scene] = field(default_factory=list)
+    template: str = "classic"
 
     @property
     def narration(self) -> str:

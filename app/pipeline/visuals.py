@@ -92,8 +92,10 @@ def _fit_cover(im: Image.Image) -> Image.Image:
 
 def render_scene(kind: str, text: str, overlay: str, out_path: Path,
                  index: int = 0, total: int = 1,
-                 background: Path | None = None) -> Path:
-    top, bottom, accent = _PALETTES.get(kind, _PALETTES["point"])
+                 background: Path | None = None,
+                 palette: tuple | None = None,
+                 with_caption: bool = True) -> Path:
+    top, bottom, accent = palette or _PALETTES.get(kind, _PALETTES["point"])
     if background and Path(background).exists():
         # AI/photo background, darkened for text legibility
         img = _fit_cover(Image.open(background).convert("RGB"))
@@ -114,25 +116,28 @@ def render_scene(kind: str, text: str, overlay: str, out_path: Path,
         bx0, by0 = margin, 150
         draw.rounded_rectangle(
             [bx0, by0, bx0 + bw + 2 * pad, by0 + 150],
-            radius=30, fill=(0, 0, 0, 0) if False else accent)
+            radius=30, fill=accent)
         fill = (255, 255, 255) if accent != (255, 255, 255) else (20, 20, 30)
         draw.text((bx0 + pad, by0 + 25), overlay, font=badge_font, fill=fill)
 
     # --- main caption (center), auto-sized to fit ---
-    size = 110
-    while size > 48:
-        cap_font = _font(size)
-        lines = _wrap(draw, text, cap_font, max_w)
-        line_h = int(size * 1.25)
-        block_h = line_h * len(lines)
-        if block_h <= HEIGHT * 0.5:
-            break
-        size -= 6
+    # When `with_caption` is False the text is left to an animated subtitle track
+    # (karaoke) rendered later by FFmpeg, so we don't bake it into the frame.
+    if with_caption:
+        size = 110
+        while size > 48:
+            cap_font = _font(size)
+            lines = _wrap(draw, text, cap_font, max_w)
+            line_h = int(size * 1.25)
+            block_h = line_h * len(lines)
+            if block_h <= HEIGHT * 0.5:
+                break
+            size -= 6
 
-    y = (HEIGHT - block_h) // 2 + line_h // 2
-    for line in lines:
-        _text_with_shadow(draw, (WIDTH // 2, y), line, cap_font, (255, 255, 255))
-        y += line_h
+        y = (HEIGHT - block_h) // 2 + line_h // 2
+        for line in lines:
+            _text_with_shadow(draw, (WIDTH // 2, y), line, cap_font, (255, 255, 255))
+            y += line_h
 
     # --- progress dots (bottom) ---
     if total > 1:

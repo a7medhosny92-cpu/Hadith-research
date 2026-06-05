@@ -24,6 +24,9 @@ class Job:
     lang: str
     seed: Optional[int]
     style: str = "slide"
+    template: str = "classic"
+    animate: bool = True
+    broll: bool = False
     state: str = "queued"
     stage: str = ""
     progress: float = 0.0
@@ -40,10 +43,13 @@ class JobStore:
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
 
     def submit(self, topic: str, num_points: int, lang: str,
-               seed: Optional[int], style: str = "slide") -> Job:
+               seed: Optional[int], style: str = "slide",
+               template: str = "classic", animate: bool = True,
+               broll: bool = False) -> Job:
         job_id = uuid.uuid4().hex[:12]
         job = Job(id=job_id, topic=topic, num_points=num_points, lang=lang,
-                  seed=seed, style=style)
+                  seed=seed, style=style, template=template, animate=animate,
+                  broll=broll)
         with self._lock:
             self._jobs[job_id] = job
         self._pool.submit(self._run, job)
@@ -71,6 +77,9 @@ class JobStore:
                 lang=job.lang,
                 seed=job.seed,
                 style=job.style,
+                template=job.template,
+                animate=job.animate,
+                use_broll=job.broll,
                 progress=progress,
             )
             job.state = "done"

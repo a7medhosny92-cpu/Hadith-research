@@ -19,6 +19,12 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=None, help="Seed riproducibile")
     ap.add_argument("--style", choices=["slide", "ai"], default="slide",
                     help="Stile visivo: slide (gradienti) o ai (Stable Diffusion)")
+    ap.add_argument("--template", choices=["classic", "quiz", "top5", "storytelling"],
+                    default="classic", help="Template/struttura del video")
+    ap.add_argument("--no-animate", dest="animate", action="store_false",
+                    help="Disattiva movimento e testo animato (frame statici)")
+    ap.add_argument("--broll", action="store_true",
+                    help="Usa clip b-roll da assets/broll come sfondo")
     ap.add_argument("--music", default=None, help="File audio di sottofondo (opzionale)")
     ap.add_argument("--out", default="output/cli", help="Cartella di output")
     args = ap.parse_args()
@@ -30,6 +36,7 @@ def main() -> None:
     result = create_video(
         topic=args.topic, workdir=Path(args.out), num_points=args.points,
         lang=args.lang, music=music, seed=args.seed, style=args.style,
+        template=args.template, animate=args.animate, use_broll=args.broll,
         progress=progress,
     )
 

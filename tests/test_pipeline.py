@@ -11,10 +11,11 @@ from pathlib import Path
 import pytest
 
 from app.pipeline.script_gen import generate_script
+from app.pipeline.templates import build_script, TEMPLATES
 from app.pipeline.visuals import render_scene, storyboard, WIDTH, HEIGHT
-from app.pipeline.subtitles import build_srt
+from app.pipeline.subtitles import build_srt, build_ass
 from app.pipeline.orchestrator import create_video
-from app.pipeline import tts, assembler
+from app.pipeline import tts, assembler, broll
 
 
 def test_script_structure_is_hook_points_cta():
@@ -63,6 +64,56 @@ def test_pipeline_produces_artifacts(tmp_path: Path):
     assert result.storyboard.exists()
     assert result.subtitles.exists()
     assert (tmp_path / "script.json").exists()
+
+
+@pytest.mark.parametrize("template", list(TEMPLATES))
+def test_every_template_builds(template):
+    s = build_script("la produttività", template=template, num_points=3, seed=1)
+    assert s.template == template
+    assert len(s.scenes) >= 3
+    assert all(sc.text and sc.palette for sc in s.scenes)
+    # indices are contiguous and ordered
+    assert [sc.index for sc in s.scenes] == list(range(len(s.scenes)))
+
+
+def test_quiz_has_question_answer_pairs():
+    s = build_script("spazio", template="quiz", num_points=2, seed=1)
+    kinds = [sc.kind for sc in s.scenes]
+    assert kinds.count("question") == kinds.count("answer") == 2
+
+
+def test_top5_counts_down():
+    s = build_script("caffè", template="top5", num_points=4, seed=1)
+    overlays = [sc.overlay for sc in s.scenes if sc.kind == "rank"]
+    assert overlays == ["#4", "#3", "#2", "#1"]
+
+
+def test_build_ass_is_karaoke(tmp_path: Path):
+    ass = build_ass([("ciao mondo bello", 3.0)], tmp_path / "c.ass")
+    text = ass.read_text(encoding="utf-8")
+    assert "[V4+ Styles]" in text
+    assert "\\kf" in text          # karaoke fill tags
+    assert "Dialogue:" in text
+
+
+def test_animate_produces_ass(tmp_path: Path):
+    result = create_video("prova", workdir=tmp_path, num_points=2, seed=3,
+                          animate=True)
+    assert result.subtitles_ass is not None
+    assert result.subtitles_ass.exists()
+
+
+def test_broll_picks_from_library(tmp_path: Path, monkeypatch):
+    lib = tmp_path / "broll"
+    lib.mkdir()
+    (lib / "produttivita_office.mp4").write_bytes(b"x")
+    (lib / "random.mp4").write_bytes(b"x")
+    monkeypatch.setattr(broll, "BROLL_DIR", lib)
+    broll._library.cache_clear()
+    assert broll.available()
+    chosen = broll.pick("produttivita", "consigli per la produttivita", seed=1)
+    assert chosen.name == "produttivita_office.mp4"  # keyword match wins
+    broll._library.cache_clear()
 
 
 @pytest.mark.skipif(not tts.available(), reason="espeak-ng non installato")

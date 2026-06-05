@@ -1,6 +1,7 @@
 """End-to-end orchestration: topic -> finished vertical video.
 
-Ties together script generation, TTS, visuals, subtitles and assembly.
+Ties together template/script generation, TTS, visuals (still or AI/b-roll),
+subtitles (static or animated karaoke) and assembly (Ken Burns motion + fades).
 Each stage degrades gracefully: if TTS/FFmpeg are missing the pipeline still
 produces the script, frames, storyboard and subtitles.
 """
@@ -12,9 +13,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from . import tts, assembler, image_gen
-from .script_gen import generate_script, Script
-from .subtitles import build_srt
+from . import tts, assembler, image_gen, broll
+from .script_gen import Script
+from .templates import build_script
+from .subtitles import build_srt, build_ass
 from .visuals import render_scene, storyboard
 
 
@@ -26,6 +28,7 @@ class PipelineResult:
     frames: List[Path] = field(default_factory=list)
     storyboard: Optional[Path] = None
     subtitles: Optional[Path] = None
+    subtitles_ass: Optional[Path] = None
     audio_clips: List[Path] = field(default_factory=list)
     video: Optional[Path] = None
     warnings: List[str] = field(default_factory=list)
@@ -38,6 +41,7 @@ class PipelineResult:
             "frames": [str(p) for p in self.frames],
             "storyboard": str(self.storyboard) if self.storyboard else None,
             "subtitles": str(self.subtitles) if self.subtitles else None,
+            "subtitles_ass": str(self.subtitles_ass) if self.subtitles_ass else None,
             "audio_clips": [str(p) for p in self.audio_clips],
             "video": str(self.video) if self.video else None,
             "warnings": self.warnings,
@@ -59,13 +63,16 @@ def create_video(
     music: Optional[Path] = None,
     seed: Optional[int] = None,
     style: str = "slide",
+    template: str = "classic",
+    animate: bool = True,
+    use_broll: bool = False,
     progress: ProgressFn = _noop,
 ) -> PipelineResult:
     workdir = Path(workdir)
     workdir.mkdir(parents=True, exist_ok=True)
 
     progress("script", 0.05)
-    script = generate_script(topic, num_points=num_points, seed=seed)
+    script = build_script(topic, template=template, num_points=num_points, seed=seed)
     result = PipelineResult(topic=topic, workdir=workdir, script=script)
 
     # 1) voice-over per scene (sets the real per-scene duration)
@@ -79,7 +86,7 @@ def create_video(
     else:
         result.warnings.append("TTS non disponibile: uso durate stimate, nessun audio.")
 
-    # 2) optional AI backgrounds (Stable Diffusion), then frames
+    # 2) optional AI backgrounds + b-roll, then frames
     progress("frames", 0.45)
     use_ai = style == "ai"
     if use_ai and not image_gen.available():
@@ -87,7 +94,16 @@ def create_video(
             "Stile 'ai' richiesto ma Stable Diffusion non disponibile "
             "(serve torch+diffusers e preferibilmente una GPU): uso le slide.")
         use_ai = False
+    if use_broll and not broll.available():
+        result.warnings.append(
+            "B-roll richiesto ma nessuna clip in assets/broll: uso le immagini.")
+        use_broll = False
 
+    # With animated karaoke captions the text is rendered by the subtitle track,
+    # so the still frame should not also bake the caption in.
+    bake_caption = not animate
+
+    broll_clips: List[Optional[Path]] = []
     for s in script.scenes:
         bg = None
         if use_ai:
@@ -95,19 +111,24 @@ def create_video(
                 topic, s.text, s.kind,
                 out_path=workdir / f"bg_{s.index:02d}.png",
                 seed=None if seed is None else seed + s.index)
+        clip = broll.pick(topic, s.text, seed=None if seed is None else seed + s.index) \
+            if use_broll else None
+        broll_clips.append(clip)
         frame = render_scene(
             kind=s.kind, text=s.text, overlay=s.overlay,
             out_path=workdir / f"frame_{s.index:02d}.png",
             index=s.index, total=len(script.scenes),
-            background=bg,
+            background=bg, palette=s.palette, with_caption=bake_caption,
         )
         result.frames.append(frame)
 
     # 3) storyboard + subtitles + script.json
     progress("subtitles", 0.65)
     result.storyboard = storyboard(result.frames, workdir / "storyboard.png")
-    result.subtitles = build_srt(
-        [(s.text, s.seconds) for s in script.scenes], workdir / "captions.srt")
+    timed = [(s.text, s.seconds) for s in script.scenes]
+    result.subtitles = build_srt(timed, workdir / "captions.srt")
+    if animate:
+        result.subtitles_ass = build_ass(timed, workdir / "captions.ass")
     (workdir / "script.json").write_text(
         json.dumps(script.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -115,13 +136,19 @@ def create_video(
     progress("assemble", 0.80)
     if assembler.available() and result.audio_clips:
         clips = [
-            assembler.Clip(image=result.frames[i], audio=result.audio_clips[i],
-                           duration=script.scenes[i].seconds)
+            assembler.Clip(
+                audio=result.audio_clips[i],
+                duration=script.scenes[i].seconds,
+                image=result.frames[i],
+                video=broll_clips[i],
+            )
             for i in range(len(script.scenes))
         ]
         result.video = assembler.assemble(
             clips, workdir / "video.mp4",
-            subtitles=result.subtitles, music=music)
+            subtitles=result.subtitles,
+            subtitles_ass=result.subtitles_ass,
+            music=music, motion=animate)
     else:
         if not assembler.available():
             result.warnings.append("FFmpeg non disponibile: nessun .mp4 prodotto.")

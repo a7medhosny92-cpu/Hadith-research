@@ -50,7 +50,16 @@
     <input id="topic" placeholder="es. la produttività, il caffè, lo spazio…" value="la produttività" />
     <div class="row">
       <div>
-        <label>Punti chiave</label>
+        <label>Template</label>
+        <select id="template">
+          <option value="classic" selected>Classico (hook + punti)</option>
+          <option value="quiz">Quiz (domanda/risposta)</option>
+          <option value="top5">Top 5 (classifica)</option>
+          <option value="storytelling">Storytelling</option>
+        </select>
+      </div>
+      <div>
+        <label>Punti / elementi</label>
         <select id="points">
           <option>1</option><option>2</option><option selected>3</option>
           <option>4</option><option>5</option>
@@ -63,11 +72,27 @@
           <option value="en">English</option>
         </select>
       </div>
+    </div>
+    <div class="row">
       <div>
         <label>Stile visivo</label>
         <select id="style">
           <option value="slide" selected>Slide (gradienti)</option>
           <option value="ai">AI (Stable Diffusion)</option>
+        </select>
+      </div>
+      <div>
+        <label>Animazione</label>
+        <select id="animate">
+          <option value="true" selected>Movimento + testo karaoke</option>
+          <option value="false">Statico</option>
+        </select>
+      </div>
+      <div>
+        <label>Sfondo b-roll</label>
+        <select id="broll">
+          <option value="false" selected>No (immagini)</option>
+          <option value="true">Sì (clip in assets/broll)</option>
         </select>
       </div>
     </div>
@@ -119,6 +144,9 @@ async function startJob() {
     num_points: parseInt($('points').value, 10),
     lang: $('lang').value,
     style: $('style').value,
+    template: $('template').value,
+    animate: $('animate').value === 'true',
+    broll: $('broll').value === 'true',
   };
   const r = await fetch('/videos', {
     method: 'POST', headers: {'content-type': 'application/json'},
