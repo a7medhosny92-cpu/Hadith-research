@@ -150,6 +150,22 @@ def test_arabic_script_is_rtl_and_localized():
     assert _is_arabic(s.narration)
 
 
+def test_arabic_tts_text_is_diacritized_but_display_is_clean():
+    s = build_script("القهوة", template="classic", num_points=3, seed=5, lang="ar")
+    for sc in s.scenes:
+        # on-screen caption has no tashkeel ...
+        assert i18n._TASHKEEL.search(sc.text) is None
+        # ... but the text fed to TTS keeps it for correct pronunciation
+        assert i18n._TASHKEEL.search(sc.speech) is not None
+        assert i18n.strip_tashkeel(sc.speech) == sc.text
+
+
+def test_strip_tashkeel_removes_all_diacritics():
+    assert i18n.strip_tashkeel("النُّقْطَةُ هٰذَا") == "النقطة هذا"
+    # non-Arabic text is untouched
+    assert i18n.strip_tashkeel("hello mondo") == "hello mondo"
+
+
 def test_rtl_bakes_caption_instead_of_karaoke(tmp_path: Path):
     # libass can't lay out RTL karaoke, so Arabic must NOT get an ASS track even
     # when animating; the caption is baked into the frame instead.

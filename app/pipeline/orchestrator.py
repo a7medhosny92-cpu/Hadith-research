@@ -84,7 +84,7 @@ def create_video(
     if tts.available(lang, voice):
         for s in script.scenes:
             wav = workdir / f"voice_{s.index:02d}.wav"
-            tts.synthesize(s.text, wav, lang=lang, voice=voice)
+            tts.synthesize(s.spoken, wav, lang=lang, voice=voice)
             s.seconds = round(tts.wav_duration(wav), 3)
             result.audio_clips.append(wav)
     else:

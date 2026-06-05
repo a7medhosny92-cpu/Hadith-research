@@ -20,10 +20,15 @@ class Scene:
 
     index: int
     kind: str              # hook | point | cta | question | answer | rank | intro | outro | beat
-    text: str              # the on-screen / spoken line
+    text: str              # the on-screen caption (clean, no Arabic diacritics)
     overlay: str = ""      # short caption burned over the visual
     seconds: float = 0.0   # estimated duration, filled in later
     palette: tuple | None = None  # optional (top, bottom, accent) RGB override
+    speech: str = ""       # text fed to TTS (may carry Arabic tashkeel for pronunciation)
+
+    @property
+    def spoken(self) -> str:
+        return self.speech or self.text
 
 
 @dataclass

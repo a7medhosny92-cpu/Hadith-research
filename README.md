@@ -72,6 +72,11 @@ Pillow). Poiché libass impagina il karaoke `\k` da sinistra a destra ignorando 
 bidi (invertendo le parole), per le lingue RTL la didascalia viene "bakeata" nel
 fotogramma — corretta e statica — mantenendo comunque movimento e crossfade.
 
+**Pronuncia araba**: la voce Piper è addestrata su testo diacritizzato, quindi i
+testi dei template arabi sono scritti con i segni diacritici (tashkīl) e usati
+così per il TTS; a schermo invece la didascalia mostra le lettere pulite
+(i diacritici vengono rimossi automaticamente con `i18n.strip_tashkeel`).
+
 Ogni lingua può avere più voci neurali Piper, selezionabili (`--voice`, campo
 `voice` nell'API, menu nel frontend). `GET /voices` elenca quelle scaricate. Se
 una voce non è disponibile si ripiega su espeak-ng.

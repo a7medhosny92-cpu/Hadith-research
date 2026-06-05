@@ -39,6 +39,10 @@ def _cycle(theme: str, i: int) -> tuple:
 def _finalize(scenes: List[Scene]) -> None:
     for i, s in enumerate(scenes):
         s.index = i
+        # Keep the diacritized form for TTS (drives correct Arabic pronunciation)
+        # and show the bare letters on screen. For non-Arabic this is a no-op.
+        s.speech = s.text
+        s.text = i18n.strip_tashkeel(s.text)
         if s.seconds <= 0:
             s.seconds = _estimate_seconds(s.text)
 
