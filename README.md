@@ -42,12 +42,20 @@ providing an API key — no code changes.
 |------|------|-------|
 | 0 | Scaffold, config, FastAPI app, CI/tests | ✅ done |
 | 1 | turath.io ingestion (catalog, client, resumable downloader) | ✅ done |
-| 2 | Parsing → structured matn / isnad / grade / citation | ✅ done |
-| 3 | Enrichment (grade / takhrij / rijal from open datasets) | ☐ |
-| 4 | Embeddings + hybrid search (`/search`) | ☐ |
-| 5 | RAG `/ask` (Classical-Arabic, cited) | ☐ |
-| 6 | **Scholars' explanations (شروح)** linked to hadith & surfaced in answers | ☐ |
-| 7 | Verification (`/takhrij`, `/verify-isnad`) | ☐ |
+| 2 | Parsing → structured matn / isnad / grade / citation (multi-edition) | ✅ done |
+| 3 | Enrichment | ◐ takhrij ✅ · rijal DB ☐ |
+| 4 | Search (`/search`, `/hadith/{id}`) | ✅ lexical FTS · semantic (pgvector) scaffolded |
+| 5 | `/ask` (Classical-Arabic, cited) | ✅ extractive · LLM hook ready |
+| 6 | **Scholars' explanations (شروح)** linked to hadith & surfaced in answers | ✅ done |
+| 7 | Verification (`/takhrij`, `/verify-isnad`) | ✅ done |
+
+**Dev vs production.** Everything above runs **today** on a zero-extra-deps stack:
+parsing is pure-stdlib and search is **sqlite FTS5** (Arabic-folded). The search
+interface is storage-agnostic, so production swaps in **PostgreSQL + pgvector**
+(hybrid lexical+semantic) and an **LLM** for `/ask` synthesis by installing the
+optional extras and flipping `LLM_ENABLED` — no caller changes. The ORM models,
+DB loader and embedding/LLM hooks are in place (`app/models`, `scripts/load_db.py`,
+`app/search/embeddings.py`, `app/qa/llm.py`).
 
 ## Corpus scope
 
@@ -104,6 +112,37 @@ answer (phase 6).
 Progress is tracked in `data/raw/turath/manifest.json`; rerun to resume. Live
 status is also exposed at `GET /health/ingestion`. Downloaded data lives under
 `data/` and is **not** committed.
+
+### Build the searchable corpus, then query it
+
+```bash
+python -m scripts.parse      # raw pages → structured JSONL (hadith + شروح, multi-edition)
+python -m scripts.index      # build the sqlite FTS indexes (data/index.db, data/sharh_index.db)
+uvicorn app.main:app --reload
+```
+
+| Endpoint | What it does |
+|---|---|
+| `GET /search?q=…` | rank hadith by relevance (Arabic-folded; `field=all\|matn\|isnad`, filter by `collection`/`grade`) |
+| `GET /hadith/{id}` | a single hadith with its citation |
+| `GET /ask?q=…` | the most relevant hadith + grade + the **scholars' شرح** on that exact hadith, cited |
+| `GET /takhrij?hadith_id=…` (or `q=…`) | the hadith's **parallel narrations** across collections |
+| `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators** + flag سماع/عنعنة/تحويل |
+
+```bash
+# examples
+curl 'localhost:8000/search?q=إنما الأعمال بالنيات'
+curl 'localhost:8000/ask?q=فضل تعلم القرآن'
+curl 'localhost:8000/takhrij?q=من كذب علي متعمدا'
+```
+
+For production search/answers, install the extras and load PostgreSQL:
+
+```bash
+pip install -e ".[embeddings,llm]"
+python -m scripts.load_db        # JSONL → Postgres + pgvector (embeds matn & شروح)
+# set LLM_ENABLED=1 (+ a model/key) to have /ask synthesise a grounded answer
+```
 
 ## Data source, attribution & ethics
 
