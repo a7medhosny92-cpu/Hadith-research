@@ -35,13 +35,17 @@ def main() -> None:
                     help="only pull code + refresh dependencies (skip the corpus rebuild)")
     ap.add_argument("--full", action="store_true",
                     help="refresh the FULL corpus (all categories), not just the canonical set")
+    ap.add_argument("--semantic", action="store_true",
+                    help="also (re)build the semantic vector index for «smart» search "
+                         "(installs the 'embeddings' extra; the first run downloads a model)")
     args = ap.parse_args()
 
     step("1/5  Pull the latest code from GitHub", ["git", "pull", "--ff-only"])
     # Include the desktop window (pywebview) and the LLM switch (litellm) so the app
-    # and the local/remote «brain» work out of the box after an update.
-    step("2/5  Refresh dependencies",
-         [PY, "-m", "pip", "install", "-e", ".[dev,desktop,llm]", "-q"])
+    # and the local/remote «brain» work out of the box after an update; add the
+    # embeddings stack too when semantic search is requested.
+    extras = ".[dev,desktop,llm,embeddings]" if args.semantic else ".[dev,desktop,llm]"
+    step("2/5  Refresh dependencies", [PY, "-m", "pip", "install", "-e", extras, "-q"])
 
     if args.code_only:
         print("\nDone — code is up to date. (Re-run without --code-only to refresh the corpus too.)")
@@ -53,6 +57,9 @@ def main() -> None:
     step("3/5  Download new/updated books (resumable — may take a while)", ingest)
     step("4/5  Parse raw pages into structured JSONL", [PY, "-X", "utf8", "-m", "scripts.parse"])
     step("5/5  Rebuild the search indexes", [PY, "-X", "utf8", "-m", "scripts.index"])
+    if args.semantic:
+        step("6/6  Build the semantic vector index (first run downloads a model)",
+             [PY, "-X", "utf8", "-m", "scripts.embed"])
     print("\nDone — code, corpus and indexes are all up to date.")
 
 

@@ -83,6 +83,11 @@ class Settings(BaseSettings):
         """sqlite FTS index of commentary passages (dev backend for /ask)."""
         return self.data_dir / "sharh_index.db"
 
+    @property
+    def vector_index_path(self) -> Path:
+        """sqlite store of dense hadith vectors for semantic search (dev backend)."""
+        return self.data_dir / "vectors.db"
+
 
 @lru_cache
 def get_settings() -> Settings:
