@@ -150,3 +150,26 @@ def analyze_isnad(text: str, rijal: "RijalIndex | None" = None) -> IsnadAnalysis
         notes=notes,
         rijal_assessment=assessment,
     )
+
+
+def continuity(narrators: list[dict], graph) -> dict:
+    """Check each تلميذ→شيخ link against the narrator network: is the pair ever recorded
+    together? A link never seen is a flag for a possible break (انقطاع) — a structural
+    hint from the texts, not a verdict on سماع. ``graph`` is a NarratorGraph."""
+    links = []
+    for student, teacher in zip(narrators, narrators[1:]):
+        weight = graph.link_weight(student["name"], teacher["name"])
+        links.append(
+            {"from": student["name"], "to": teacher["name"], "count": weight, "seen": weight > 0}
+        )
+    seen = sum(1 for link in links if link["seen"])
+    if not links:
+        note = "السند قصير؛ لا حلقات للمقابلة."
+    elif seen == len(links):
+        note = "كلّ حلقات الإسناد لها رواية معروفة في النصوص."
+    else:
+        note = (
+            f"{len(links) - seen} من {len(links)} حلقة لم تُعرف روايتها في النصوص؛ "
+            "يُنظر في الاتصال (قد يكون انقطاعًا أو اختلاف صيغة الاسم)."
+        )
+    return {"links": links, "seen": seen, "total": len(links), "note": note}
