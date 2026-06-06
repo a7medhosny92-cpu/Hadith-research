@@ -58,9 +58,10 @@ def main() -> None:
     step("4/7  Parse raw pages into structured JSONL", [PY, "-X", "utf8", "-m", "scripts.parse"])
     step("5/7  Rebuild the search indexes", [PY, "-X", "utf8", "-m", "scripts.index"])
     step("6/7  Build the narrator network", [PY, "-X", "utf8", "-m", "scripts.build_graph"])
-    # Full narrator gradings (تقريب التهذيب) → decisive isnad verdicts. Downloads the
-    # one small رجال source if missing; resumable and idempotent.
-    step("7/7  Build the رجال gradings (تقريب التهذيب)", [PY, "-X", "utf8", "-m", "scripts.build_rijal"])
+    # Full narrator gradings (تقريب التهذيب + الكاشف) → decisive isnad verdicts. Downloads
+    # the small رجال sources if missing; resumable and idempotent.
+    step("7/7  Build the رجال gradings (تقريب التهذيب + الكاشف)",
+         [PY, "-X", "utf8", "-m", "scripts.build_rijal"])
     if args.semantic:
         step("+ semantic  Build the vector index (first run downloads a model)",
              [PY, "-X", "utf8", "-m", "scripts.embed"])

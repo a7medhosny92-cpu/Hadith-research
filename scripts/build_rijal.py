@@ -30,7 +30,7 @@ from app.ingestion.downloader import CorpusDownloader
 from app.ingestion.turath_client import TurathClient
 from app.parsing.rijal_extract import parse_rijal_file
 from app.rijal.grades import classify
-from app.rijal.index import _clean_tokens, load_seed
+from app.rijal.index import RijalIndex, _clean_tokens, load_seed
 
 
 async def _ensure_downloaded(book_ids: list[int]) -> None:
@@ -75,6 +75,50 @@ def dedupe_against_seed(records: list[dict]) -> list[dict]:
     return kept
 
 
+def _graded(grade: str | None) -> bool:
+    return classify(grade or "")[1] is not None
+
+
+def _covered(index: RijalIndex, name: str) -> bool:
+    match = index.lookup(name)
+    return bool(match and match.score >= 1.0 and not match.ambiguous)
+
+
+def merge_source(primary: list[dict], secondary: list[dict]) -> tuple[list[dict], int, int]:
+    """Fold a *secondary* رجال source (e.g. الكاشف) into ``primary`` (تقريب, the
+    authority) without ever creating a duplicate — which would make a shared name look
+    مشترك. A secondary record is used only to:
+
+      * **grade** a primary narrator that primary left ungraded (al-Dhahabi fills a gap), or
+      * **add** a narrator that primary doesn't have at all.
+
+    Records the secondary book itself leaves ungraded are skipped (no value). Returns
+    ``(records, added, upgraded)``."""
+    seed_index = RijalIndex(load_seed())
+    index = RijalIndex(primary)
+    by_name = {r["name"]: r for r in primary}
+    added = upgraded = 0
+    for record in secondary:
+        if not _graded(record.get("grade")):
+            continue
+        if _covered(seed_index, record["name"]):
+            continue
+        match = index.lookup(record["name"])
+        if match and match.score >= 1.0 and not match.ambiguous:
+            existing = by_name.get(match.entry.name)
+            if existing is not None and not _graded(existing.get("grade")):
+                existing["grade"] = record["grade"]      # fill the gap with al-Dhahabi
+                existing["source"] = f"{existing.get('source', '')} + {record.get('source', '')}".strip(" +")
+                upgraded += 1
+            # otherwise primary already grades him — primary is the standard, skip
+        else:
+            primary.append(record)                       # a narrator primary didn't have
+            index.add([record])
+            by_name[record["name"]] = record
+            added += 1
+    return primary, added, upgraded
+
+
 def main() -> None:
     settings = get_settings()
     parser = argparse.ArgumentParser(description="Build the full رجال JSONL for /verify-isnad")
@@ -89,33 +133,41 @@ def main() -> None:
     if not args.no_download:
         asyncio.run(_ensure_downloaded(args.books))
 
-    extracted: list[dict] = []
     books_dir = settings.raw_dir / "books"
+    extracted: list[list[dict]] = []   # one list per source, in order (first = authority)
     for book_id in args.books:
         path = books_dir / f"{book_id}.json"
         if not path.exists():
             print(f"skip {book_id}: not downloaded")
             continue
         records = parse_rijal_file(path)
-        extracted.extend(records)
+        extracted.append(records)
         print(f"book {book_id}: {len(records)} narrators ({RIJAL_SOURCES.get(book_id, '')})")
 
-    if args.input and args.input.exists():
-        for line in args.input.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                extracted.append(json.loads(line))
+    if not extracted:
+        print("No رجال source books found. Run with network access to download تقريب التهذيب.")
+        return
 
-    unique = dedupe_against_seed(extracted)
+    # تقريب (the first source) is the authority; fold in the rest as gap-fillers.
+    result = dedupe_against_seed(extracted[0])
+    for records in extracted[1:]:
+        result, added, upgraded = merge_source(result, records)
+        print(f"  merged a secondary source: +{added} new narrators, {upgraded} gaps graded")
+
+    if args.input and args.input.exists():
+        extra = [json.loads(line) for line in args.input.read_text(encoding="utf-8").splitlines() if line.strip()]
+        result, added, upgraded = merge_source(result, extra)
+        print(f"  merged --input: +{added} new, {upgraded} gaps graded")
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as fh:
-        for record in unique:
+        for record in result:
             fh.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    distribution = Counter(classify(r.get("grade") or "")[0] for r in unique)
+    distribution = Counter(classify(r.get("grade") or "")[0] for r in result)
     seed_n = len(load_seed())
-    print(f"\nwrote {len(unique)} narrators → {args.output}")
-    print(f"(+ {seed_n} from the bundled seed = {len(unique) + seed_n} graded narrators total)")
+    print(f"\nwrote {len(result)} narrators → {args.output}")
+    print(f"(+ {seed_n} from the bundled seed = {len(result) + seed_n} graded narrators total)")
     for category, count in distribution.most_common():
         print(f"  {category}: {count}")
     print("\n/verify-isnad will use this automatically on the next app start.")

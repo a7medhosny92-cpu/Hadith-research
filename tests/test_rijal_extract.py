@@ -5,7 +5,7 @@ from __future__ import annotations
 from app.parsing.rijal_extract import iter_narrators
 from app.rijal.grades import classify
 from app.rijal.index import RijalIndex
-from scripts.build_rijal import dedupe_against_seed
+from scripts.build_rijal import dedupe_against_seed, merge_source
 
 # A faithful slice of تقريب: numbered entries, terse verdict before «من الطبقة»,
 # rumūz at the end, a «[]» cross-reference to skip, a bracketed [مقبول], and the
@@ -80,3 +80,25 @@ def test_dedupe_drops_exact_seed_duplicates_but_keeps_namesakes():
     assert "عبد الله بن عمر" not in names           # true duplicate removed
     assert any("العمري" in n for n in names)         # the weak namesake survives, graded ضعيف
     assert any("زنفل" in n for n in names)
+
+
+def test_merge_source_fills_gaps_and_adds_without_duplicating():
+    # primary (تقريب): one well-graded, one left ungraded.
+    primary = [
+        {"name": "سفيان ابن سعيد الثوري الكوفي", "grade": "ثقة", "source": "تقريب"},
+        {"name": "محمد ابن عجلان المدني", "grade": "غير محدد", "source": "تقريب"},
+    ]
+    # secondary (الكاشف): grades the gap, repeats the graded one, adds a new man, plus a blank.
+    secondary = [
+        {"name": "محمد ابن عجلان المدني القرشي", "grade": "صدوق", "source": "الكاشف"},  # → fills gap
+        {"name": "سفيان ابن سعيد الثوري", "grade": "حافظ", "source": "الكاشف"},          # → dup, skip
+        {"name": "هشيم ابن بشير الواسطي", "grade": "ثقة", "source": "الكاشف"},           # → new
+        {"name": "رجل مبهم", "grade": "غير محدد", "source": "الكاشف"},                    # → blank, skip
+    ]
+    merged, added, upgraded = merge_source(primary, secondary)
+    names = [r["name"] for r in merged]
+    assert added == 1 and upgraded == 1
+    assert any("هشيم" in n for n in names)                       # the new narrator is added
+    ajlan = next(r for r in merged if r["name"].startswith("محمد ابن عجلان"))
+    assert classify(ajlan["grade"])[0] == "صدوق"                 # gap filled by al-Dhahabi
+    assert sum(1 for n in names if "الثوري" in n) == 1          # no duplicate الثوري
