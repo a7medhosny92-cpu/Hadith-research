@@ -48,3 +48,16 @@ def test_seed_cache_lets_next_embed_reuse(tmp_path):
     assert seed_cache(s) == 2                           # seed the cache from vectors.db
     total, new, reused = embed_corpus(s)
     assert (new, reused) == (0, 2)                      # next embed reuses everything
+
+
+def test_seed_cache_refuses_a_misaligned_vectors_db(tmp_path):
+    # vectors.db built, then the index is rebuilt with a different count → seeding it
+    # would poison the cache (audit: the real-world failure). seed_cache must refuse.
+    s = _settings(tmp_path)
+    _index(s, ["متن أ", "متن ب", "متن ج", "متن د"])
+    embed_corpus(s, use_cache=False)                    # vectors.db for 4 hadith
+    s.index_path.unlink()
+    _index(s, ["متن أ", "متن ب", "متن ج"])             # re-index → 3 hadith, ids shifted
+    s.embed_cache_path.unlink(missing_ok=True)
+    assert seed_cache(s) == 0                           # refused (not poisoned)
+    assert not s.embed_cache_path.exists()
