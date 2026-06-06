@@ -23,7 +23,8 @@ router = APIRouter(tags=["isnad"])
 
 @lru_cache(maxsize=1)
 def _rijal_index() -> RijalIndex:
-    return RijalIndex(load_entries(get_settings().rijal_path))
+    # seed + the full رجال file (explicit RIJAL_PATH, else auto data/rijal.jsonl).
+    return RijalIndex(load_entries(get_settings().rijal_file))
 
 
 def get_rijal() -> RijalIndex:

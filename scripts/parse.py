@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 from app.config import get_settings
+from app.ingestion.catalog import RIJAL_SOURCES
 from app.parsing.hadith_extract import parse_book_file
 from app.parsing.sharh_extract import SHARH_TO_BASE, parse_sharh_file
 
@@ -58,6 +59,11 @@ def main() -> None:
         path = books_dir / f"{book_id}.json"
         if not path.exists():
             print(f"skip {book_id}: not downloaded")
+            continue
+        if book_id in RIJAL_SOURCES:
+            # A رجال biography book, not hadith — handled by scripts.build_rijal so it
+            # doesn't pollute the hadith index. Skip it here.
+            print(f"skip {book_id}: رجال source ({RIJAL_SOURCES[book_id]}) → scripts.build_rijal")
             continue
         if _is_sharh(path, book_id):
             passages = parse_sharh_file(path)
