@@ -39,9 +39,9 @@ data/processed/*.jsonl
    │        answer (RAG) · takhrij (صيغ · صحابي · أخرجه) · isnad · rulings (أحكام) · rijal graph
    │  [6] LLM engine  app/qa/llm.py    off / local (Ollama) / remote (Claude) — via LiteLLM
    ▼
- [7] FastAPI  app/main.py   →  /search · /hadith · /ask · /takhrij · /verify-isnad · /narrator
+ [7] FastAPI  app/main.py   →  /search · /hadith · /ask · /takhrij · /verify-isnad · /narrator · /notebook
         │
-        └─ /app  →  static UI ⟷ native desktop window     modes: بحث · سؤال · تخريج · راوٍ
+        └─ /app  →  static UI ⟷ native desktop window  modes: بحث · سؤال · تخريج · راوٍ · الإسناد · دفتري
 ```
 
 The chain is the same everywhere: the system **retrieves and cites**, it never
@@ -63,10 +63,11 @@ brains or providers.
 | **Search** — lexical FTS (uncapped) · semantic · **hybrid (RRF)** | `/search?mode=` | ✅ |
 | **Ask (RAG)** — top hadith + **full شرح** + **rulings (أحكام)**, cited; LLM switch off/local/remote | `/ask?engine=` | ✅ |
 | **Takhrij** — *every* narration → variants (صيغ: بلفظه/بنحوه/بمعناه) · grouped by **Companion** · «أخرجه» · chains shown | `/takhrij` | ✅ |
-| **Isnad** — structure (سماع/عنعنة/تحويل), per-narrator grade, **continuity (اتصال)** vs the network | `/verify-isnad` | ✅ |
+| **Isnad** — structure (سماع/عنعنة/تحويل), per-narrator grade, **continuity (اتصال)**, and a single bottom-line **verdict «الحكم على الإسناد»** (rijal + اتصال + عنعنة, with disclaimer) | `/verify-isnad` | ✅ |
 | **Narrator network (علم الرجال)** — شيوخ/تلاميذ from the chains, weighted; gradings (seed; full رجال via `RIJAL_PATH`) | `/narrator` | ✅ |
 | **Scholars' rulings (أحكام)** — ordered by طبقة, divergence flagged, «حسن صحيح» resolved by the number of chains | in `/ask`,`/takhrij` | ✅ |
 | Scholars' explanations (شروح) linked per hadith & quoted with attribution | in `/ask` | ✅ |
+| **Study notebook (دفتري)** — save any hadith / narrator / answer / isnad with a note; persists across rebuilds | `/notebook` | ✅ |
 
 **Dev vs production.** Everything above runs **today** on your machine with a light
 stack: parsing is pure-stdlib and the indexes are **sqlite** — FTS5 for lexical
@@ -178,8 +179,9 @@ uvicorn app.main:app --reload
 | `GET /hadith/{id}` | a single hadith with its citation |
 | `GET /ask?q=…` | the most relevant hadith + grade + the **scholars' شرح**, the **scholars' rulings (أحكام)** on it ordered by era (صحّحه/ضعّفه…, divergence surfaced), cited (add `&engine=local\|remote` and optionally `&model=<any litellm id>` to synthesise with an LLM) |
 | `GET /takhrij?hadith_id=…` (or `q=…`) | **every** narration of the same report (lexical+semantic recall), grouped **by Companion (الصحابي)** then into distinct wordings (صيغ) labelled بلفظه/بنحوه/بمعناه — each Companion with an «أخرجه» summary, every chain shown |
-| `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators**, flag سماع/عنعنة/تحويل, **grade each narrator** (رجال), and check each link's **continuity (اتصال)** against the narrator network |
+| `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators**, flag سماع/عنعنة/تحويل, **grade each narrator** (رجال), check each link's **continuity (اتصال)** against the narrator network, and return a single bottom-line **verdict «الحكم على الإسناد»** that fuses the weakest-link grade + الاتصال + عنعنة (a study verdict on the apparent state of the men, not a full تصحيح — needs النظر في العلّة والشذوذ) |
 | `GET /narrator?name=…` | a narrator's place in the network (شبكة الرواة): his **شيوخ** (narrates from) and **تلاميذ** (narrate from him), weighted, plus his grade |
+| `GET/POST/PATCH/DELETE /notebook` | your **study notebook (دفتري)**: save a hadith / narrator / answer / isnad with a personal note + tags, search them, edit, delete — stored in `data/notebook.db`, **never touched by index rebuilds** |
 
 ```bash
 # examples
@@ -224,11 +226,17 @@ python -m scripts.load_db        # JSONL → Postgres + pgvector (embeds matn & 
 # or per request /ask?engine=local|remote  ('off', the default, stays extractive)
 ```
 
-**Narrator gradings (رجال).** `/verify-isnad` grades each narrator using a curated,
-attributed seed (`app/rijal/seed.jsonl`, verdicts from تقريب التهذيب; the Companions
-are عدول by consensus). The verdict is structural — a *weakest-link* read of the
-chain — and explicitly not a full تصحيح (which also needs اتصال and absence of علة/شذوذ).
-To grade more narrators, build a fuller رجال JSONL and point `RIJAL_PATH` at it:
+**Narrator gradings (رجال) & the chain verdict.** `/verify-isnad` grades each narrator
+using a curated, attributed seed (`app/rijal/seed.jsonl`, verdicts from تقريب التهذيب;
+the Companions are عدول by consensus), then rolls everything into one bottom-line
+**«الحكم على الإسناد»**: it takes the *weakest-link* grade, lets a clear **انقطاع**
+(an unseen link in the network) override an otherwise sound chain, and holds back a
+firm تصحيح when there is **عنعنة** or when narrators are still unknown to the base.
+It is deliberately conservative — a study verdict on the *apparent* state of the men
+and the connection, **not a full تصحيح** (which also needs النظر في العلّة والشذوذ) and
+not a fatwa. Quality scales with coverage: with the small seed many chains read
+«يُتوقَّف فيه»; to grade more narrators, build a fuller رجال JSONL and point `RIJAL_PATH`
+at it:
 
 ```bash
 python -m scripts.build_rijal --input narrators.jsonl --output data/rijal.jsonl

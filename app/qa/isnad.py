@@ -173,3 +173,68 @@ def continuity(narrators: list[dict], graph) -> dict:
             "يُنظر في الاتصال (قد يكون انقطاعًا أو اختلاف صيغة الاسم)."
         )
     return {"links": links, "seen": seen, "total": len(links), "note": note}
+
+
+def overall_ruling(analysis: dict, continuity: dict | None = None) -> dict:
+    """A single bottom-line «الحكم على الإسناد» that fuses the rijal verdict (by the
+    weakest narrator), the اتصال check, and عنعنة.
+
+    It is explicitly a verdict on the *apparent* state of the men and the connection —
+    not a full تصحيح, which also needs النظر في العلّة والشذوذ. The narrator ranks come
+    from ``app.rijal.grades.RANKS`` (10 = صحابي … 0 = كذاب). ``tone`` (sahih|hasan|daif|
+    other) is for display colour. With a small rijal seed many narrators are unknown, so
+    a positive verdict is held back to «يُتوقَّف فيه» until a fuller رجال base is loaded."""
+    ra = analysis.get("rijal_assessment") or {}
+    weakest = ra.get("weakest_rank")
+    unknown = ra.get("unknown") or 0
+    has_anana = bool(analysis.get("has_anana"))
+    broken = bool(
+        continuity and continuity.get("total")
+        and continuity.get("seen", 0) < continuity["total"]
+    )
+
+    # 1) base verdict from the weakest *known* narrator
+    if weakest is None:
+        grade, tone, reason = (
+            "غير محكوم عليه", "other", "لم يُعرف رواة هذا الإسناد في قاعدة الرجال"
+        )
+    elif weakest <= 1:        # كذاب / متروك
+        grade, tone, reason = "ضعيف جدًا", "daif", "في الإسناد راوٍ متروك أو متّهم"
+    elif weakest <= 3:        # ضعيف / مجهول
+        grade, tone, reason = "ضعيف", "daif", "في الإسناد راوٍ ضعيف أو مجهول"
+    elif weakest <= 6:        # لين / مقبول / صدوق له أوهام
+        grade, tone, reason = (
+            "حسن لغيره", "hasan",
+            "في الإسناد مَن لا يُحتجّ بتفرّده؛ يُعتبر به في الشواهد والمتابعات",
+        )
+    elif weakest <= 8:        # صدوق
+        grade, tone, reason = "حسن", "hasan", "أمثل رجاله صدوق؛ حديثه حسن لذاته"
+    else:                     # ثقة / صحابي
+        grade, tone, reason = "صحيح", "sahih", "رجاله كلّهم ثقات"
+
+    # 2) narrators we couldn't find make a positive verdict non-final (the DB is limited)
+    if unknown and tone in ("sahih", "hasan"):
+        grade, tone = "يُتوقَّف فيه", "other"
+        reason = f"{reason}؛ لكن بقي {unknown} راوٍ لم يُعرف في القاعدة فلا يُجزَم"
+
+    # 3) a clear break in the chain weakens an otherwise sound isnad
+    if broken and tone in ("sahih", "hasan", "other"):
+        grade, tone = "ضعيف", "daif"
+        reason = f"{reason}؛ وفي الإسناد انقطاعٌ ظاهر (حلقة غير معروفة في النصوص)"
+    elif tone == "sahih" and continuity and continuity.get("total"):
+        reason = f"{reason}؛ والإسناد متّصل بحسب الشبكة"
+
+    # 4) عنعنة keeps a sound chain short of a firm تصحيح until السماع is confirmed
+    if has_anana and tone == "sahih":
+        grade = "صحيح إن ثبت السماع"
+        reason = f"{reason}؛ وفيه عنعنة فيُتحقَّق من ثبوت السماع"
+
+    return {
+        "grade": grade,
+        "tone": tone,
+        "reason": reason,
+        "disclaimer": (
+            "حكمٌ على ظاهر حال الرجال واتصال السند فقط؛ وتمام التصحيح يقتضي النظر في "
+            "العلّة والشذوذ. هذه أداة دراسة لا فتوى."
+        ),
+    }

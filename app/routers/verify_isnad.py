@@ -12,7 +12,7 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import get_settings
-from app.qa.isnad import analyze_isnad, continuity
+from app.qa.isnad import analyze_isnad, continuity, overall_ruling
 from app.rijal import RijalIndex, load_entries
 from app.rijal.graph import NarratorGraph
 from app.routers.search import get_index
@@ -62,4 +62,6 @@ def verify_isnad(
     result = {"source": source, "analysis": analysis}
     if graph is not None and graph.count():
         result["continuity"] = continuity(analysis["narrators"], graph)
+    # The single bottom-line verdict «الحكم على الإسناد» (rijal + اتصال + عنعنة).
+    result["ruling"] = overall_ruling(analysis, result.get("continuity"))
     return result

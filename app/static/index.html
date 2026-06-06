@@ -114,6 +114,10 @@
     border-radius:8px;padding:8px 14px;font-size:.9rem;cursor:pointer;white-space:nowrap}
   .nb-save:hover{border-color:var(--accent);color:#bff0d0}
   .nb-del{color:#f0a0a0}.nb-del:hover{border-color:#5c2a1f;background:#3a2420}
+  /* isnad: transmission-mode chip on each narrator */
+  .via{font-size:.78rem;padding:1px 9px;border-radius:999px;margin-inline-start:6px}
+  .via-sama{background:#1f5c3d;color:#bff0d0}
+  .via-anana{background:#5c531f;color:#f0e7bf}
 </style>
 </head>
 <body>
@@ -128,6 +132,7 @@
     <button data-mode="ask">سؤال</button>
     <button data-mode="takhrij">تخريج</button>
     <button data-mode="narrator">راوٍ</button>
+    <button data-mode="isnad">الإسناد</button>
     <button data-mode="notebook">دفتري</button>
   </div>
   <input id="q" placeholder="اكتب الحديث أو السؤال…" autofocus>
@@ -162,10 +167,11 @@
 </div>
 
 <script>
-const LABELS = {search:"ابحث", ask:"اسأل", takhrij:"خرّج", narrator:"اعرض", notebook:"ابحث"};
+const LABELS = {search:"ابحث", ask:"اسأل", takhrij:"خرّج", narrator:"اعرض",
+  isnad:"حقّق", notebook:"ابحث"};
 const PLACEHOLDER = {search:"اكتب الحديث أو السؤال…", ask:"اكتب سؤالك…",
   takhrij:"اكتب متن الحديث…", narrator:"اكتب اسم الراوي…",
-  notebook:"ابحث في دفترك… (فارغ = الكل)"};
+  isnad:"الصق الإسناد… أو رقم حديثٍ مفهرس", notebook:"ابحث في دفترك… (فارغ = الكل)"};
 const ENGINE_AR = {
   off: "إجابة استخراجية من المصادر (بدون ذكاء اصطناعي)",
   local: "أُجيب عبر محرّك محلي (Ollama)",
@@ -307,6 +313,13 @@ async function run(){
       const d = await r.json();
       if(!r.ok){ results.innerHTML = `<div class="state">${esc(d.detail || "تعذّر العرض")}</div>`; return; }
       renderNarrator(d);
+    } else if(mode === "isnad"){
+      // digits → a hadith number to look up; anything else → a pasted chain.
+      const param = /^\d+$/.test(query) ? `hadith_id=${query}` : `isnad=${encodeURIComponent(query)}`;
+      const r = await fetch(`/verify-isnad?${param}`);
+      const d = await r.json();
+      if(!r.ok){ results.innerHTML = `<div class="state">${esc(d.detail || "تعذّر التحقّق")}</div>`; return; }
+      renderIsnad(d);
     } else {
       const d = await (await fetch(`/notebook?q=${encodeURIComponent(query)}`)).json();
       renderNotebook(d.items || []);
@@ -410,8 +423,66 @@ function renderNarrator(d){
   results.innerHTML = html;
 }
 
+// Isnad (الإسناد): the chain's bottom-line verdict, narrator by narrator, plus اتصال.
+const TONE = {sahih:"g-sahih", hasan:"g-hasan", daif:"g-daif", other:"g-other"};
+function isnadVia(v){
+  if(v === "سماع")  return `<span class="via via-sama">سماع</span>`;
+  if(v === "عنعنة") return `<span class="via via-anana">عنعنة</span>`;
+  return "";
+}
+function renderIsnad(d){
+  const a = d.analysis || {}, r = d.ruling, cont = d.continuity;
+  let html = "";
+  // 1) the bottom-line verdict «الحكم على الإسناد»
+  if(r){
+    const cls = TONE[r.tone] || "g-other";
+    const save = saveChip({kind:"isnad", title:`الحكم على الإسناد: ${r.grade}`,
+      body:(d.source && d.source.isnad) || "", meta:{grade:r.grade, ruling:r, source:d.source}});
+    html += `<div class="card"><div class="rawi-name"><span>الحكم على الإسناد</span>`
+      + `<span class="grade ${cls}">${esc(r.grade)}</span>${save}</div>`
+      + `<div class="rawi-summary">${esc(r.reason)}</div>`
+      + `<div class="note" style="margin-top:8px">${esc(r.disclaimer)}</div></div>`;
+  }
+  // 2) chain features at a glance
+  const feats = [`${a.length || 0} راوٍ`];
+  if(a.modes){ if(a.modes["سماع"]) feats.push(`سماع: ${a.modes["سماع"]}`);
+               if(a.modes["عنعنة"]) feats.push(`عنعنة: ${a.modes["عنعنة"]}`); }
+  if(a.has_tahwil) feats.push("فيه تحويل (ح)");
+  feats.push(a.reaches_prophet ? "يصل إلى النبي ﷺ (مرفوع)" : "لا يبلغ النبي ﷺ في النصّ");
+  html += `<div class="note">${feats.map(esc).join("  ·  ")}</div>`;
+  // 3) the narrators, each with his grade
+  html += `<div class="rawi-col"><h3>سلسلة الرواة (${(a.narrators || []).length})</h3>`;
+  (a.narrators || []).forEach((n, i) => {
+    const rij = n.rijal;
+    const g = rij && rij.grade;
+    const amb = rij && rij.ambiguous ? ` <span class="simbadge" title="${esc((rij.alternatives||[]).join(' / '))}">مشترك</span>` : "";
+    const badge = g
+      ? `<span class="grade ${rijalClass(g)}" title="${esc(rij.verdict || '')}">${esc(g)}</span>${amb}`
+      : `<span class="simbadge">غير معروف في القاعدة</span>`;
+    html += `<div class="rawi-item"><span>${i + 1}. ${esc(n.name)} ${isnadVia(n.via)}</span>${badge}</div>`;
+  });
+  html += `</div>`;
+  // 4) continuity, link by link
+  if(cont){
+    html += `<div class="rawi-col"><h3>اتصال السند</h3>`;
+    (cont.links || []).forEach(l => {
+      const ok = l.seen
+        ? `<span class="grade g-sahih">معروف (${l.count})</span>`
+        : `<span class="grade g-daif">لم يُعرف</span>`;
+      html += `<div class="rawi-item"><span>${esc(l.from)} ← ${esc(l.to)}</span>${ok}</div>`;
+    });
+    html += `<div class="rawi-summary">${esc(cont.note)}</div></div>`;
+  }
+  // 5) the structural notes
+  if(a.notes && a.notes.length){
+    html += `<div class="sources"><span class="r-lbl">ملاحظات:</span> `
+      + a.notes.map(esc).join("  ·  ") + `</div>`;
+  }
+  results.innerHTML = html;
+}
+
 // Study notebook (دفتري): the items you saved with the ★ star, each with your own note.
-const NB_KIND = {hadith:"حديث", narrator:"راوٍ", answer:"جواب", note:"ملاحظة"};
+const NB_KIND = {hadith:"حديث", narrator:"راوٍ", answer:"جواب", isnad:"إسناد", note:"ملاحظة"};
 const NB_EMPTY = `<div class="state">دفترك فارغ — احفظ حديثًا أو راويًا أو جوابًا بالنجمة ★</div>`;
 function nbGrade(it){
   const g = it.meta && it.meta.grade;
