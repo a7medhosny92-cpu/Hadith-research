@@ -106,6 +106,19 @@ bash scripts/setup_local.sh full     # every hadith-sciences category (~2.9M pag
 It is **resumable**: if it stops, run it again and it continues. The steps below are
 the same pipeline run by hand (ingest → parse → index).
 
+### Keep it up to date
+
+Pull the latest code and refresh the corpus in one go — on Windows just **double-click
+`update.bat`**:
+
+```bash
+python -m scripts.update              # code + corpus
+python -m scripts.update --code-only  # just code + dependencies (fast)
+```
+
+Safe to re-run anytime: `git pull` is fast-forward, the crawl resumes, and
+parse/index are idempotent.
+
 ### Ingestion (downloading from turath.io)
 
 ```bash
@@ -149,6 +162,18 @@ curl 'localhost:8000/search?q=إنما الأعمال بالنيات'
 curl 'localhost:8000/ask?q=فضل تعلم القرآن'
 curl 'localhost:8000/takhrij?q=من كذب علي متعمدا'
 ```
+
+### Desktop app (a native window)
+
+Prefer an app window over the browser? A simple **native OS window** (Arabic renders
+correctly — the same UI is also at `http://localhost:8000/app` in any browser):
+
+```bash
+pip install -e ".[desktop]"
+python -m app.desktop            # or the console script:  hadith-app
+```
+
+It opens a window over the local app to **search**, **ask**, and trace **takhrij**.
 
 For production search/answers, install the extras and load PostgreSQL:
 
