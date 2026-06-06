@@ -44,7 +44,7 @@ set `LLM_REMOTE_MODEL` + an API key. No code changes to swap brains.
 | 1 | turath.io ingestion (catalog, client, resumable downloader) | ✅ done |
 | 2 | Parsing → structured matn / isnad / grade / citation (multi-edition) | ✅ done |
 | 3 | Enrichment | ◐ takhrij ✅ · rijal gradings (curated seed) ✅ · full رجال DB ☐ |
-| 4 | Search (`/search`, `/hadith/{id}`) | ✅ lexical FTS · semantic (pgvector) scaffolded |
+| 4 | Search (`/search`, `/hadith/{id}`) | ✅ lexical FTS (uncapped) · **semantic + hybrid (RRF)** via local vectors (`?mode=`) |
 | 5 | `/ask` (Classical-Arabic, cited) | ✅ extractive · **local/remote LLM switch** (`?engine=`) |
 | 6 | **Scholars' explanations (شروح)** linked to hadith & surfaced in answers | ✅ done |
 | 7 | Verification (`/takhrij`, `/verify-isnad`) | ✅ done |
@@ -150,7 +150,7 @@ uvicorn app.main:app --reload
 
 | Endpoint | What it does |
 |---|---|
-| `GET /search?q=…` | rank hadith by relevance (Arabic-folded; `field=all\|matn\|isnad`, filter by `collection`/`grade`) |
+| `GET /search?q=…` | rank hadith by relevance (Arabic-folded; `field=all\|matn\|isnad`, filter by `collection`/`grade`; `mode=lexical\|semantic\|hybrid`) |
 | `GET /hadith/{id}` | a single hadith with its citation |
 | `GET /ask?q=…` | the most relevant hadith + grade + the **scholars' شرح** on that exact hadith, cited (add `&engine=local` or `&engine=remote` to synthesise with an LLM) |
 | `GET /takhrij?hadith_id=…` (or `q=…`) | the hadith's **parallel narrations** across collections |
@@ -177,6 +177,16 @@ It opens a window over the local app to **search**, **ask**, and trace **takhrij
 Search and takhrij return *all* matches (revealed in batches, no cap), `/ask` shows
 the **complete** شرح passage, and in «ask» mode a dropdown switches the answer engine
 between **off** (extractive), **local** (Ollama) and **remote** (Claude) live.
+
+**Semantic ("smart") search.** Beyond exact words, you can match by *meaning*
+(synonyms, paraphrase). Build a local vector index once, then `/ask` retrieves with a
+lexical+semantic **hybrid** automatically, and `/search?mode=semantic|hybrid` is available:
+
+```bash
+pip install -e ".[embeddings]"   # sentence-transformers + torch (CPU is fine)
+python -m scripts.embed          # embeds the corpus → data/vectors.db (one-off)
+# or in one go on update:  python -m scripts.update --semantic
+```
 
 For production search/answers, install the extras and load PostgreSQL:
 

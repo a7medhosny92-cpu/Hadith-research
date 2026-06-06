@@ -41,8 +41,16 @@ echo "▶ 1/3  Downloading from turath.io (polite + resumable — rerun to conti
 echo "▶ 2/3  Parsing raw pages → structured JSONL (hadith + شروح)…"
 "$PYTHON" -m scripts.parse
 
-echo "▶ 3/3  Building the sqlite search indexes…"
+echo "▶ 3/4  Building the sqlite search indexes…"
 "$PYTHON" -m scripts.index
+
+echo "▶ 4/4  Building the semantic (vector) index for «smart» search…"
+if "$PYTHON" -c "import sentence_transformers" >/dev/null 2>&1; then
+  "$PYTHON" -m scripts.embed
+else
+  echo "   (skipped — semantic search is off. To turn it on:"
+  echo "      pip install -e \".[embeddings]\"  &&  $PYTHON -m scripts.embed )"
+fi
 
 echo "✅ Done. The corpus + indexes are under data/ and stay on this machine."
 echo "   Run the app:  uvicorn app.main:app --reload   →  http://localhost:8000/docs"

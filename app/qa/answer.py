@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from app.search import HadithIndex, SearchHit, SharhHit, SharhIndex
+from app.search import HadithIndex, HybridSearcher, SearchHit, SharhHit, SharhIndex
 
 #: Given (question, hadith_sources, sharh_sources) → a grounded prose answer.
 Synthesizer = Callable[[str, list[dict], list[dict]], str]
@@ -99,7 +99,7 @@ def _complete_sharh(sharh: list[SharhHit], sharh_index: SharhIndex) -> list[dict
 
 def answer_question(
     question: str,
-    hadith_index: HadithIndex,
+    hadith_index: HadithIndex | HybridSearcher,
     sharh_index: SharhIndex,
     *,
     k_hadith: int = 5,

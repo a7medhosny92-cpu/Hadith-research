@@ -1,5 +1,6 @@
-"""Hadith & sharh search (lexical now; hybrid lexical+semantic in production)."""
+"""Hadith & sharh search: lexical (FTS) + optional semantic (vectors), fused."""
 
+from app.search.hybrid import HybridSearcher, rrf_fuse
 from app.search.index import (
     COLLECTION_NAMES,
     HadithIndex,
@@ -7,5 +8,15 @@ from app.search.index import (
     SharhHit,
     SharhIndex,
 )
+from app.search.vectors import VectorIndex
 
-__all__ = ["HadithIndex", "SearchHit", "SharhIndex", "SharhHit", "COLLECTION_NAMES"]
+__all__ = [
+    "HadithIndex",
+    "SearchHit",
+    "SharhIndex",
+    "SharhHit",
+    "COLLECTION_NAMES",
+    "VectorIndex",
+    "HybridSearcher",
+    "rrf_fuse",
+]

@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends, Query
 from app.config import get_settings
 from app.qa import answer_question
 from app.qa.answer import Synthesizer
-from app.routers.search import get_index
-from app.search import HadithIndex, SharhIndex
+from app.routers.search import get_embedder, get_index, get_vectors
+from app.search import HadithIndex, HybridSearcher, SharhIndex, VectorIndex
+from app.search.embeddings import Embedder
 
 router = APIRouter(tags=["ask"])
 
@@ -56,20 +57,25 @@ def ask(
     ),
     hadith_index: HadithIndex = Depends(get_index),
     sharh_index: SharhIndex = Depends(get_sharh_index),
+    vectors: VectorIndex | None = Depends(get_vectors),
+    embedder: Embedder | None = Depends(get_embedder),
 ) -> dict:
     settings = get_settings()
     resolved = resolve_engine(engine, settings)
+    # Retrieve with semantic+lexical hybrid when the vector index is available; this
+    # degrades to pure lexical when it isn't, so /ask works before the corpus is embedded.
+    retriever = HybridSearcher(hadith_index, vectors, embedder)
     kw = dict(k_hadith=k_hadith, k_sharh=k_sharh)
     try:
         out = answer_question(
-            q, hadith_index, sharh_index,
+            q, retriever, sharh_index,
             synthesize=build_synthesizer(resolved, settings), **kw,
         )
     except Exception:
         # The LLM brain is unreachable (Ollama not running, missing API key, or the
         # optional 'llm' extra not installed). Don't fail the request — fall back to
         # the cited extractive answer and tell the user what happened.
-        out = answer_question(q, hadith_index, sharh_index, synthesize=None, **kw)
+        out = answer_question(q, retriever, sharh_index, synthesize=None, **kw)
         out["warning"] = (
             "تعذّر تشغيل محرّك الذكاء الاصطناعي — تأكّد من تشغيل Ollama للمحرّك المحلي، "
             "أو من ضبط مفتاح API للمحرّك السحابي. وهذه إجابة استخراجية من المصادر."

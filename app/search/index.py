@@ -229,6 +229,18 @@ class HadithIndex:
     def count(self) -> int:
         return self._con.execute("SELECT count(*) FROM hadith").fetchone()[0]
 
+    def iter_for_embedding(self) -> Iterator[tuple[int, str]]:
+        """Yield ``(rowid, text)`` for every hadith, in row order, for the vector index.
+
+        Reading ids straight from this index guarantees the vector store shares them,
+        so a semantic hit's id resolves back to the full record here. The embedded text
+        is the matn plus its chapter heading (light topical context)."""
+        for rowid, matn, chapter in self._con.execute(
+            "SELECT rowid, matn, chapter FROM hadith ORDER BY rowid"
+        ):
+            text = " ".join(p for p in (matn, chapter) if p)
+            yield rowid, text
+
     def close(self) -> None:
         self._con.close()
 
