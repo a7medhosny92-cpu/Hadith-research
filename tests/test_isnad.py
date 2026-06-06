@@ -6,9 +6,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.qa.isnad import analyze_isnad
+from app.qa.isnad import analyze_isnad, overall_ruling
 from app.routers.search import get_index
 from app.search import HadithIndex
+
+
+def _analysis(weakest, unknown=0, anana=False):
+    return {"rijal_assessment": {"weakest_rank": weakest, "unknown": unknown},
+            "has_anana": anana}
 
 CHAIN = (
     "حدثنا الحميدي، حدثنا سفيان، حدثنا يحيى بن سعيد، "
@@ -38,6 +43,41 @@ def test_reaches_prophet():
     assert not analyze_isnad("حدثنا فلان، عن أنس").reaches_prophet
 
 
+# ── overall ruling (الحكم على الإسناد) ───────────────────────────────────────
+def test_ruling_all_thiqat_connected_is_sahih():
+    r = overall_ruling(_analysis(9), {"total": 5, "seen": 5})
+    assert r["tone"] == "sahih" and r["grade"] == "صحيح"
+
+
+def test_ruling_sadduq_is_hasan():
+    assert overall_ruling(_analysis(7))["tone"] == "hasan"
+
+
+def test_ruling_weakest_matruk_is_very_weak():
+    r = overall_ruling(_analysis(1))
+    assert r["tone"] == "daif" and "جدًا" in r["grade"]
+
+
+def test_ruling_break_overrides_strong_rijal():
+    # rijal all ثقات, but a chain link is unseen → ضعيف للانقطاع
+    r = overall_ruling(_analysis(9), {"total": 5, "seen": 3})
+    assert r["tone"] == "daif" and "انقطاع" in r["reason"]
+
+
+def test_ruling_unknown_narrators_hold_the_verdict():
+    r = overall_ruling(_analysis(9, unknown=2))
+    assert r["tone"] == "other" and "يُتوقَّف" in r["grade"]
+
+
+def test_ruling_anana_caveats_a_sound_chain():
+    r = overall_ruling(_analysis(9, anana=True), {"total": 5, "seen": 5})
+    assert r["tone"] == "sahih" and "السماع" in r["reason"]
+
+
+def test_ruling_unknown_rijal_not_judged():
+    assert overall_ruling(_analysis(None))["tone"] == "other"
+
+
 # ── API ─────────────────────────────────────────────────────────────────────
 @pytest.fixture
 def client() -> TestClient:
@@ -54,7 +94,10 @@ def client() -> TestClient:
 def test_api_verify_by_text(client):
     r = client.get("/verify-isnad", params={"isnad": CHAIN})
     assert r.status_code == 200
-    assert r.json()["analysis"]["length"] == 6
+    body = r.json()
+    assert body["analysis"]["length"] == 6
+    # the bottom-line verdict is always present
+    assert {"grade", "tone", "reason", "disclaimer"} <= body["ruling"].keys()
 
 
 def test_api_verify_by_hadith_id(client):
