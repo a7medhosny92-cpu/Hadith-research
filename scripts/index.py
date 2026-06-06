@@ -24,14 +24,22 @@ def main() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
     started = time.time()
+    print("Indexing hadith…")
     n = rebuild(settings.index_path, lambda tmp: HadithIndex.build_from_processed(processed, tmp))
     print(f"Indexed {n} hadith → {settings.index_path}")
 
+    # The شرح index is the slow step (tens of thousands of passages → many chunks);
+    # print per-file progress so it never looks stuck.
+    print("Indexing شروح — the big one; this can take a few minutes…")
+
+    def _progress(name: str, chunks: int) -> None:
+        print(f"  + {name}: {chunks} chunks so far", end="\r", flush=True)
+
     m = rebuild(
         settings.sharh_index_path,
-        lambda tmp: SharhIndex.build_from_processed(processed / "sharh", tmp),
+        lambda tmp: SharhIndex.build_from_processed(processed / "sharh", tmp, on_progress=_progress),
     )
-    print(f"Indexed {m} sharh passages → {settings.sharh_index_path}")
+    print(f"\nIndexed {m} sharh passages → {settings.sharh_index_path}")
     print(f"Done in {time.time() - started:.1f}s")
 
 
