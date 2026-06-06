@@ -238,13 +238,14 @@ It is deliberately conservative — a study verdict on the *apparent* state of t
 and the connection, **not a full تصحيح** (which also needs النظر في العلّة والشذوذ) and
 not a fatwa.
 
-**Full coverage (تقريب التهذيب).** Quality scales with how many narrators are graded.
-`scripts.build_rijal` downloads **تقريب التهذيب** (Ibn Ḥajar — one terse verdict per
-narrator, ~8.8k men covering the Six Books), extracts a graded record per tarjama, drops
-the ones the seed already covers, and writes `data/rijal.jsonl`, which `/verify-isnad`
-**auto-loads on the next start** (no env var needed). With it in place, verdicts become
-decisive instead of «يُتوقَّف فيه». It runs automatically as the last step of
-`scripts.update` / `update.bat`, or on its own:
+**Full coverage (تقريب التهذيب + الكاشف).** Quality scales with how many narrators are
+graded. `scripts.build_rijal` downloads **تقريب التهذيب** (Ibn Ḥajar — one terse verdict
+per narrator, ~8.8k men covering the Six Books) as the **authority**, then folds in
+**الكاشف** (al-Dhahabī) as a second terse source that only **fills the narrators تقريب
+left ungraded** and **adds any it lacks** — never duplicating a man (so no false مشترك).
+It writes `data/rijal.jsonl`, which `/verify-isnad` **auto-loads on the next start** (no
+env var needed). With it in place, verdicts become decisive instead of «يُتوقَّف فيه».
+It runs automatically as the last step of `scripts.update` / `update.bat`, or on its own:
 
 ```bash
 python -m scripts.build_rijal            # download تقريب + extract + write data/rijal.jsonl

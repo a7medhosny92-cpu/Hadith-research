@@ -46,17 +46,20 @@ _COMPANION = re.compile(
     r"(?<!\w)(صحابي|صحابية|له صحبة|شهد بدرًا|شهد بدرا|بدري|من السابقين|"
     r"بايع تحت الشجرة|من أهل بدر|من المهاجرين الأولين)(?!\w)"
 )
-# Narrative verdicts that replace a one-word رتبة.
+# Narrative verdicts that replace a one-word رتبة. Includes al-Dhahabi's terse forms
+# in الكاشف («وثق», «ضعف», «لا بأس», «صويلح»). Checked in order; first hit wins.
 _FALLBACK: list[tuple[str, list[str]]] = [
     ("كذاب", ["كذبه", "يضع الحديث", "متهم بالكذب", "دجال"]),
     ("متروك", ["تركوه", "تركه", "ذاهب الحديث", "ليس بشيء"]),
-    ("ضعيف", ["ضعفه", "ضعفوه", "لا يحتج به", "منكر الحديث", "فيه ضعف"]),
-    ("ثقة", ["وثقه", "ثقات"]),
+    ("ضعيف", ["ضعفه", "ضعفوه", "ضعّف", "ضعف", "لا يحتج به", "منكر الحديث", "فيه ضعف", "واه"]),
+    ("صدوق", ["لا بأس", "ليس به بأس", "بحديثه بأس", "صالح الحديث", "صويلح", "محله الصدق"]),
+    ("ثقة", ["وثقه", "وثقوه", "وثق", "ثقات"]),
 ]
 # Where a name ends and the biography begins — cut the name at the first of these.
+# «عن» starts the teachers list (الكاشف: «name عن … وعنه …»); «مات/توفي» the death.
 _NAME_CUT = re.compile(
-    r"\s(?:مات|من|قال|قيل|روى|يروي|وكان|كان|نزيل|نزل|سكن|وفد|أصله|وثقه|ضعفه|"
-    r"تركه|كذبه|وقال|له|رمي|اختلط|صنف|مشهور|تابعي|مخضرم|صحابي|صحابية|شهد)\s"
+    r"\s(?:عن|مات|توفي|توفى|من|قال|قيل|روى|يروي|وكان|كان|نزيل|نزل|سكن|وفد|أصله|"
+    r"وثقه|ضعفه|تركه|كذبه|وقال|له|رمي|اختلط|صنف|مشهور|تابعي|مخضرم|صحابي|صحابية|شهد)\s"
 )
 # ضبط fragments (orthography notes) stripped from the name.
 _NOISE = re.compile(
@@ -104,14 +107,22 @@ def _parse_year(words: list[str]) -> int | None:
 
 
 def _death_year(body: str) -> int | None:
-    m = re.search(r"(?<!\w)مات\b", body)
+    m = re.search(r"(?<!\w)(?:مات|توفي|توفى|توفّي)\b", body)
     if not m:
         return None
-    seg = re.search(r"سنة\s+(.+)", body[m.start(): m.start() + 70])
-    if not seg:
+    seg = body[m.start(): m.start() + 45]
+    # الكاشف writes the year in digits («توفي ١٧١»); take the first 2–3 digit run.
+    digits = re.search(r"[\d٠-٩۰-۹]{2,3}", seg)
+    if digits:
+        year = arabic_digits_to_int(digits.group(0))
+        if year and 10 <= year <= 400:
+            return year
+    # تقريب spells it out («مات سنة سبع عشرة»).
+    spelled = re.search(r"سنة\s+(.+)", seg)
+    if not spelled:
         return None
     take: list[str] = []
-    for tok in seg.group(1).split():
+    for tok in spelled.group(1).split():
         t = tok.lstrip("و")
         if t in _UNITS or t in _TENS or t in _HUND or any(h in t for h in ("مائت", "مئت", "مائة", "مئة")):
             take.append(tok)
@@ -173,8 +184,15 @@ def _entry_to_record(number: int | None, body: str, source: str) -> dict | None:
     return record
 
 
-def iter_narrators(pages: Iterable[dict], source: str = "تقريب التهذيب") -> Iterator[dict]:
-    """Yield narrator records for every numbered tarjama across the book's pages."""
+def iter_narrators(
+    pages: Iterable[dict], source: str = "تقريب التهذيب", start_page_id: int | None = None
+) -> Iterator[dict]:
+    """Yield narrator records for every numbered tarjama across the book's pages.
+
+    ``start_page_id`` skips the editor's muqaddima (long in الكاشف), whose numbered
+    lists would otherwise be mistaken for tarjamas — pass the page where entry 1 starts.
+    """
+    pages = [p for p in pages if start_page_id is None or p.get("pg", 0) >= start_page_id]
     full = "\n".join(
         clean_block(p.get("text") or "")
         for p in sorted(pages, key=lambda p: p.get("pg", 0))
@@ -191,8 +209,18 @@ def iter_narrators(pages: Iterable[dict], source: str = "تقريب التهذي
             yield record
 
 
+def _first_entry_page(data: dict) -> int | None:
+    """Page id where the numbered tarjamas start, from the ``numbers`` index
+    (entry number → page id) — used to skip the editor's muqaddima."""
+    numbers = (data.get("indexes") or {}).get("numbers") or {}
+    pages = [int(v) for v in numbers.values() if str(v).lstrip("-").isdigit()]
+    return min(pages) if pages else None
+
+
 def parse_rijal_file(path: str | Path, source: str | None = None) -> list[dict]:
     """Parse a downloaded ``{raw_dir}/books/{id}.json`` رجال book into narrator records."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     name = source or data.get("name") or "تقريب التهذيب"
-    return list(iter_narrators(data.get("pages", []), source=name))
+    return list(iter_narrators(
+        data.get("pages", []), source=name, start_page_id=_first_entry_page(data)
+    ))

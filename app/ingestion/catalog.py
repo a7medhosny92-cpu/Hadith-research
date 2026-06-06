@@ -58,11 +58,14 @@ ALL_COMMENTARY_IDS: tuple[int, ...] = tuple(
 )
 
 # Terse رجال books — one graded entry per narrator — that the rijal extractor
-# (app.parsing.rijal_extract) can parse into gradings for /verify-isnad. تقريب التهذيب
-# (Ibn Ḥajar) covers essentially every narrator of the Six Books with a one-word
-# verdict, which is exactly what an isnad check needs. ids verified against the catalog.
+# (app.parsing.rijal_extract) can parse into gradings for /verify-isnad. Order matters:
+# the FIRST is the authority and the rest only fill gaps / add missing narrators
+# (see scripts.build_rijal.merge_source). تقريب التهذيب (Ibn Ḥajar) covers essentially
+# every narrator of the Six Books with a one-word verdict; الكاشف (al-Dhahabī) is a
+# second terse source for the same men. ids verified against the catalog.
 RIJAL_SOURCES: dict[int, str] = {
     8609: "تقريب التهذيب",
+    2171: "الكاشف",
 }
 
 
