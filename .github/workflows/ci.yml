@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (dev extras)
+        run: pip install -e ".[dev]"
+      - name: Run tests
+        run: python -m pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Lint the UI script (syntax check)
+        run: |
+          python - <<'PY'
+          import re, pathlib
+          html = pathlib.Path("app/static/index.html").read_text(encoding="utf-8")
+          js = re.search(r"<script>(.*)</script>", html, re.S).group(1)
+          pathlib.Path("/tmp/ui.js").write_text(js, encoding="utf-8")
+          PY
+          node --check /tmp/ui.js
