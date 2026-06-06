@@ -54,10 +54,13 @@ def main() -> None:
     ingest = [PY, "-X", "utf8", "-m", "scripts.ingest"]
     ingest += (["--categories", "6", "7", "8", "9", "10", "26"] if args.full
                else ["--priority", "--with-commentaries"])
-    step("3/6  Download new/updated books (resumable — may take a while)", ingest)
-    step("4/6  Parse raw pages into structured JSONL", [PY, "-X", "utf8", "-m", "scripts.parse"])
-    step("5/6  Rebuild the search indexes", [PY, "-X", "utf8", "-m", "scripts.index"])
-    step("6/6  Build the narrator network", [PY, "-X", "utf8", "-m", "scripts.build_graph"])
+    step("3/7  Download new/updated books (resumable — may take a while)", ingest)
+    step("4/7  Parse raw pages into structured JSONL", [PY, "-X", "utf8", "-m", "scripts.parse"])
+    step("5/7  Rebuild the search indexes", [PY, "-X", "utf8", "-m", "scripts.index"])
+    step("6/7  Build the narrator network", [PY, "-X", "utf8", "-m", "scripts.build_graph"])
+    # Full narrator gradings (تقريب التهذيب) → decisive isnad verdicts. Downloads the
+    # one small رجال source if missing; resumable and idempotent.
+    step("7/7  Build the رجال gradings (تقريب التهذيب)", [PY, "-X", "utf8", "-m", "scripts.build_rijal"])
     if args.semantic:
         step("+ semantic  Build the vector index (first run downloads a model)",
              [PY, "-X", "utf8", "-m", "scripts.embed"])

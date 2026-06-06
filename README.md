@@ -65,7 +65,7 @@ brains or providers.
 | **Ask (RAG)** — top hadith + **full شرح** + **rulings (أحكام)**, cited; LLM switch off/local/remote | `/ask?engine=` | ✅ |
 | **Takhrij** — *every* narration → variants (صيغ: بلفظه/بنحوه/بمعناه) · grouped by **Companion** · «أخرجه» · chains shown | `/takhrij` | ✅ |
 | **Isnad** — structure (سماع/عنعنة/تحويل), per-narrator grade, **continuity (اتصال)**, and a single bottom-line **verdict «الحكم على الإسناد»** (rijal + اتصال + عنعنة, with disclaimer) | `/verify-isnad` | ✅ |
-| **Narrator network (علم الرجال)** — شيوخ/تلاميذ from the chains, weighted; gradings (seed; full رجال via `RIJAL_PATH`) | `/narrator` | ✅ |
+| **Narrator network (علم الرجال)** — شيوخ/تلاميذ from the chains, weighted; gradings (curated seed + full **تقريب التهذيب**, ~8.8k narrators, built by `scripts.build_rijal`) | `/narrator` | ✅ |
 | **Scholars' rulings (أحكام)** — ordered by طبقة, divergence flagged, «حسن صحيح» resolved by the number of chains | in `/ask`,`/takhrij` | ✅ |
 | Scholars' explanations (شروح) linked per hadith & quoted with attribution | in `/ask` | ✅ |
 | **Study notebook (دفتري)** — save any hadith / narrator / answer / isnad with a note; persists across rebuilds | `/notebook` | ✅ |
@@ -236,12 +236,21 @@ the Companions are عدول by consensus), then rolls everything into one bottom
 firm تصحيح when there is **عنعنة** or when narrators are still unknown to the base.
 It is deliberately conservative — a study verdict on the *apparent* state of the men
 and the connection, **not a full تصحيح** (which also needs النظر في العلّة والشذوذ) and
-not a fatwa. Quality scales with coverage: with the small seed many chains read
-«يُتوقَّف فيه»; to grade more narrators, build a fuller رجال JSONL and point `RIJAL_PATH`
-at it:
+not a fatwa.
+
+**Full coverage (تقريب التهذيب).** Quality scales with how many narrators are graded.
+`scripts.build_rijal` downloads **تقريب التهذيب** (Ibn Ḥajar — one terse verdict per
+narrator, ~8.8k men covering the Six Books), extracts a graded record per tarjama, drops
+the ones the seed already covers, and writes `data/rijal.jsonl`, which `/verify-isnad`
+**auto-loads on the next start** (no env var needed). With it in place, verdicts become
+decisive instead of «يُتوقَّف فيه». It runs automatically as the last step of
+`scripts.update` / `update.bat`, or on its own:
 
 ```bash
-python -m scripts.build_rijal --input narrators.jsonl --output data/rijal.jsonl
+python -m scripts.build_rijal            # download تقريب + extract + write data/rijal.jsonl
+# or grade still more narrators by merging a hand-made JSONL:
+python -m scripts.build_rijal --input narrators.jsonl
+# or point RIJAL_PATH at any رجال JSONL to override auto-discovery.
 ```
 
 ## Data source, attribution & ethics

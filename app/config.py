@@ -53,8 +53,9 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
 
     # ── Rijal (narrator gradings) ────────────────────────────────────────────
-    # /verify-isnad always uses the bundled curated seed; point this at a full
-    # رجال JSONL (e.g. built from turath cat-26) to grade more narrators.
+    # /verify-isnad always uses the bundled curated seed; set this to a full رجال
+    # JSONL to grade more narrators. If unset, the app auto-discovers the one built
+    # by `scripts.build_rijal` at data/rijal.jsonl (see the rijal_file property).
     rijal_path: str | None = None
 
     # ── Hadith corpus scope ─────────────────────────────────────────────────
@@ -102,6 +103,15 @@ class Settings(BaseSettings):
     def notebook_path(self) -> Path:
         """The study notebook (saved items + notes) — persistent, never rebuilt."""
         return self.data_dir / "notebook.db"
+
+    @property
+    def rijal_file(self) -> str | None:
+        """The full رجال JSONL to load on top of the seed: an explicit ``rijal_path``
+        wins, else the one built by ``scripts.build_rijal`` (data/rijal.jsonl) if present."""
+        if self.rijal_path:
+            return self.rijal_path
+        built = self.data_dir / "rijal.jsonl"
+        return str(built) if built.exists() else None
 
 
 @lru_cache

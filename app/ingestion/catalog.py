@@ -57,6 +57,14 @@ ALL_COMMENTARY_IDS: tuple[int, ...] = tuple(
     dict.fromkeys(sid for ids in COMMENTARIES.values() for sid in ids)
 )
 
+# Terse رجال books — one graded entry per narrator — that the rijal extractor
+# (app.parsing.rijal_extract) can parse into gradings for /verify-isnad. تقريب التهذيب
+# (Ibn Ḥajar) covers essentially every narrator of the Six Books with a one-word
+# verdict, which is exactly what an isnad check needs. ids verified against the catalog.
+RIJAL_SOURCES: dict[int, str] = {
+    8609: "تقريب التهذيب",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class BookRecord:
