@@ -5,7 +5,10 @@ Run locally:  ``uvicorn app.main:app --reload``
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from app import __version__
 from app.routers import ask, health, search, takhrij, verify_isnad
@@ -29,6 +32,16 @@ def root() -> dict:
         "name": "hadith-research-backend",
         "version": __version__,
         "docs": "/docs",
+        "app": "/app",
         "endpoints": ["/search", "/hadith/{id}", "/ask", "/takhrij", "/verify-isnad"],
         "endpoints_planned": ["semantic search & LLM synthesis (production)"],
     }
+
+
+_UI_FILE = Path(__file__).parent / "static" / "index.html"
+
+
+@app.get("/app", include_in_schema=False)
+def desktop_ui() -> FileResponse:
+    """The simple interactive UI — used by the native desktop window and any browser."""
+    return FileResponse(_UI_FILE)

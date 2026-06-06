@@ -150,6 +150,18 @@ curl 'localhost:8000/ask?q=فضل تعلم القرآن'
 curl 'localhost:8000/takhrij?q=من كذب علي متعمدا'
 ```
 
+### Desktop app (a native window)
+
+Prefer an app window over the browser? A simple **native OS window** (Arabic renders
+correctly — the same UI is also at `http://localhost:8000/app` in any browser):
+
+```bash
+pip install -e ".[desktop]"
+python -m app.desktop            # or the console script:  hadith-app
+```
+
+It opens a window over the local app to **search**, **ask**, and trace **takhrij**.
+
 For production search/answers, install the extras and load PostgreSQL:
 
 ```bash

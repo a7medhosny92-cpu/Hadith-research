@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بحث وتحقيق الحديث</title>
+<style>
+  :root{
+    --bg:#0f1419; --card:#1a2129; --accent:#3b9c6d; --accent2:#2f7d57;
+    --muted:#8aa0ad; --text:#e8eef2; --line:#2a3540;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:"Segoe UI","Amiri","Scheherazade New","Traditional Arabic",serif;}
+  header{padding:18px 24px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:1.5rem}
+  header p{margin:6px 0 0;color:var(--muted);font-size:.92rem}
+  .bar{display:flex;gap:8px;padding:16px 24px;flex-wrap:wrap;align-items:center;
+    position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}
+  .modes{display:flex;gap:4px}
+  .modes button{background:var(--card);color:var(--text);border:1px solid var(--line);
+    padding:9px 16px;border-radius:8px;cursor:pointer;font-size:1rem}
+  .modes button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  #q{flex:1;min-width:240px;background:var(--card);color:var(--text);
+    border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:1.15rem}
+  #go{background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:12px 24px;font-size:1rem;cursor:pointer}
+  #go:hover{background:var(--accent2)}
+  #results{padding:8px 24px 48px;max-width:980px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;margin:14px 0}
+  .matn{font-size:1.3rem;line-height:2.1}
+  .answer{white-space:pre-wrap;font-size:1.2rem;line-height:2.1}
+  .cite{color:var(--muted);margin-top:12px;font-size:.95rem;
+    display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .grade{padding:3px 12px;border-radius:999px;font-size:.85rem;font-weight:bold}
+  .g-sahih{background:#1f5c3d;color:#bff0d0}
+  .g-hasan{background:#5c531f;color:#f0e7bf}
+  .g-daif{background:#5c2a1f;color:#f0c8bf}
+  .g-other{background:#33404a;color:#cde}
+  .toggle{color:var(--accent);cursor:pointer;font-size:.88rem;margin-top:10px;user-select:none}
+  .isnad{margin-top:8px;color:#aec4d2;font-size:.98rem;line-height:1.9;display:none;
+    border-top:1px dashed var(--line);padding-top:8px}
+  .isnad.show{display:block}
+  .sharh{border-inline-start:3px solid var(--accent);background:#16201b}
+  .sharh b{color:#bff0d0}
+  .sharh .ex{margin-top:6px;line-height:1.95;color:#d4e6dc}
+  .note{color:var(--muted);margin:6px 2px}
+  .state{text-align:center;padding:40px;color:var(--muted);font-size:1.05rem}
+</style>
+</head>
+<body>
+<header>
+  <h1>بحث وتحقيق الحديث</h1>
+  <p>ابحث في كتب السنة، اسأل، وتتبّع التخريج — مع شروح العلماء، بالعربية الفصحى</p>
+</header>
+
+<div class="bar">
+  <div class="modes">
+    <button data-mode="search" class="active">بحث</button>
+    <button data-mode="ask">سؤال</button>
+    <button data-mode="takhrij">تخريج</button>
+  </div>
+  <input id="q" placeholder="اكتب الحديث أو السؤال…" autofocus>
+  <button id="go">ابحث</button>
+</div>
+
+<div id="results">
+  <div class="state">اكتب نصًّا في الأعلى واضغط Enter</div>
+</div>
+
+<script>
+const LABELS = {search:"ابحث", ask:"اسأل", takhrij:"خرّج"};
+let mode = "search";
+const results = document.getElementById("results");
+const q  = document.getElementById("q");
+const go = document.getElementById("go");
+
+document.querySelectorAll(".modes button").forEach(b => b.onclick = () => {
+  mode = b.dataset.mode;
+  document.querySelectorAll(".modes button").forEach(x => x.classList.toggle("active", x === b));
+  go.textContent = LABELS[mode];
+});
+go.onclick = run;
+q.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+
+function esc(s){ const d = document.createElement("div"); d.textContent = (s==null?"":s); return d.innerHTML; }
+function gradeClass(g){
+  if(!g) return "g-other";
+  if(g.includes("صحيح")) return "g-sahih";
+  if(g.includes("حسن"))  return "g-hasan";
+  if(g.includes("ضعيف")||g.includes("موضوع")||g.includes("منكر")) return "g-daif";
+  return "g-other";
+}
+function hadithCard(h){
+  const cite = [h.collection, (h.number!=null?"رقم "+h.number:null), (h.page!=null?"ص "+h.page:null)]
+    .filter(Boolean).join("  ·  ");
+  const grade = h.grade ? `<span class="grade ${gradeClass(h.grade)}">${esc(h.grade)}</span>` : "";
+  const isnad = h.isnad
+    ? `<div class="toggle">عرض الإسناد ▾</div><div class="isnad">${esc(h.isnad)}</div>` : "";
+  return `<div class="card"><div class="matn">${esc(h.matn)}</div>
+    <div class="cite">${grade}<span>${esc(cite)}</span></div>${isnad}</div>`;
+}
+
+async function run(){
+  const query = q.value.trim();
+  if(!query) return;
+  results.innerHTML = `<div class="state">… جارٍ التنفيذ</div>`;
+  try{
+    if(mode === "search"){
+      const d = await (await fetch(`/search?q=${encodeURIComponent(query)}&limit=20`)).json();
+      const hits = d.results || [];
+      results.innerHTML = hits.length
+        ? `<div class="note">${d.count} نتيجة</div>` + hits.map(hadithCard).join("")
+        : `<div class="state">لا توجد نتائج</div>`;
+    } else if(mode === "ask"){
+      const d = await (await fetch(`/ask?q=${encodeURIComponent(query)}`)).json();
+      let html = `<div class="card"><div class="answer">${esc(d.answer)}</div></div>`;
+      (d.sharh || []).forEach(s => {
+        const ref = s.sharh + (s.hadith_number!=null ? ` (عند الحديث ${s.hadith_number})` : "");
+        html += `<div class="card sharh"><b>${esc(ref)}</b><div class="ex">${esc(s.excerpt)}</div></div>`;
+      });
+      results.innerHTML = html;
+    } else {
+      const d = await (await fetch(`/takhrij?q=${encodeURIComponent(query)}&limit=20`)).json();
+      const ps = d.parallels || [];
+      results.innerHTML = ps.length
+        ? `<div class="note">${d.count} روايات موازية</div>` + ps.map(hadithCard).join("")
+        : `<div class="state">لا توجد روايات موازية</div>`;
+    }
+  } catch(e){
+    results.innerHTML = `<div class="state">تعذّر الاتصال بالخادم. تأكّد أنّ التطبيق يعمل.</div>`;
+  }
+}
+
+// Toggle the isnad (event delegation).
+results.addEventListener("click", e => {
+  if(!e.target.classList.contains("toggle")) return;
+  const isnad = e.target.nextElementSibling;
+  const open = isnad.classList.toggle("show");
+  e.target.textContent = open ? "إخفاء الإسناد ▴" : "عرض الإسناد ▾";
+});
+</script>
+</body>
+</html>

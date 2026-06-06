@@ -33,6 +33,10 @@ embeddings = [
 llm = [
     "litellm>=1.40",
 ]
+# Native desktop window: pywebview wraps the local UI in an OS window.
+desktop = [
+    "pywebview>=5.0",
+]
 # Richer Classical-Arabic NLP (narrator NER, morphology). Optional — heavier install.
 nlp = [
     "camel-tools>=1.5",
@@ -46,6 +50,7 @@ dev = [
 
 [project.scripts]
 hadith-ingest = "scripts.ingest:main"
+hadith-app = "app.desktop:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -55,6 +60,7 @@ build-backend = "setuptools.build_meta"
 packages = ["app", "app.ingestion", "app.parsing", "app.routers", "app.models", "app.search", "app.qa", "app.rijal"]
 
 [tool.setuptools.package-data]
+"app" = ["static/index.html"]
 "app.rijal" = ["seed.jsonl"]
 
 [tool.pytest.ini_options]
