@@ -236,7 +236,21 @@ document.querySelectorAll(".modes button").forEach(b => b.onclick = () => {
 go.onclick = run;
 q.addEventListener("keydown", e => { if (e.key === "Enter") run(); });
 
-function esc(s){ const d = document.createElement("div"); d.textContent = (s==null?"":s); return d.innerHTML; }
+function esc(s){ const d = document.createElement("div"); d.textContent = (s==null?"":s);
+  return d.innerHTML.replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }   // also safe in attributes
+// Arabic-Indic (٠-٩) / Eastern-Arabic (۰-۹) digits → ASCII, so a hadith number typed in
+// native digits is recognised.
+function toAscii(s){
+  return (s||"").replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+                .replace(/[۰-۹]/g, d => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+}
+// fetch JSON and surface a server error (detail) instead of treating it as «no results».
+async function getJSON(url, opts){
+  const r = await fetch(url, opts);
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+  return d;
+}
 
 // «★ احفظ» button: register the payload, render a star; a delegated handler POSTs it.
 let _saveSeq = 0; const SAVEABLE = {};
@@ -309,7 +323,7 @@ async function run(){
   results.innerHTML = `<div class="state">… جارٍ التنفيذ</div>`;
   try{
     if(mode === "search"){
-      const d = await (await fetch(`/search?q=${encodeURIComponent(query)}`)).json();
+      const d = await getJSON(`/search?q=${encodeURIComponent(query)}`);
       renderList(d.results || [], "نتيجة", "لا توجد نتائج");
     } else if(mode === "ask"){
       if(engineSel.value === "local" && compareBox.checked){ await runCompare(query); return; }
@@ -317,7 +331,7 @@ async function run(){
       const mdl = modelInput.value.trim();
       let url = `/ask?q=${encodeURIComponent(query)}&engine=${eng}`;
       if(mdl && eng !== "off") url += `&model=${encodeURIComponent(mdl)}`;
-      const d = await (await fetch(url)).json();
+      const d = await getJSON(url);
       let html = "";
       if(d.warning) html += `<div class="warn">${esc(d.warning)}</div>`;
       if(d.engine){
@@ -335,26 +349,23 @@ async function run(){
       });
       results.innerHTML = html;
     } else if(mode === "takhrij"){
-      const d = await (await fetch(`/takhrij?q=${encodeURIComponent(query)}`)).json();
-      renderTakhrij(d);
+      renderTakhrij(await getJSON(`/takhrij?q=${encodeURIComponent(query)}`));
     } else if(mode === "narrator"){
-      const r = await fetch(`/narrator?name=${encodeURIComponent(query)}`);
-      const d = await r.json();
-      if(!r.ok){ results.innerHTML = `<div class="state">${esc(d.detail || "تعذّر العرض")}</div>`; return; }
-      renderNarrator(d);
+      renderNarrator(await getJSON(`/narrator?name=${encodeURIComponent(query)}`));
     } else if(mode === "isnad"){
-      // digits → a hadith number to look up; anything else → a pasted chain.
-      const param = /^\d+$/.test(query) ? `hadith_id=${query}` : `isnad=${encodeURIComponent(query)}`;
-      const r = await fetch(`/verify-isnad?${param}`);
-      const d = await r.json();
-      if(!r.ok){ results.innerHTML = `<div class="state">${esc(d.detail || "تعذّر التحقّق")}</div>`; return; }
-      renderIsnad(d);
+      // a number (any digits) → a hadith id to look up; anything else → a pasted chain.
+      const num = toAscii(query);
+      const param = /^\d+$/.test(num) ? `hadith_id=${num}` : `isnad=${encodeURIComponent(query)}`;
+      renderIsnad(await getJSON(`/verify-isnad?${param}`));
     } else {
-      const d = await (await fetch(`/notebook?q=${encodeURIComponent(query)}`)).json();
+      const d = await getJSON(`/notebook?q=${encodeURIComponent(query)}`);
       renderNotebook(d.items || []);
     }
   } catch(e){
-    results.innerHTML = `<div class="state">تعذّر الاتصال بالخادم. تأكّد أنّ التطبيق يعمل.</div>`;
+    // show the server's message (validation / not found) when there is one
+    const net = !e || !e.message || /failed to fetch|networkerror|load failed/i.test(e.message);
+    results.innerHTML = `<div class="state">${esc(net
+      ? "تعذّر الاتصال بالخادم. تأكّد أنّ التطبيق يعمل." : e.message)}</div>`;
   }
 }
 
