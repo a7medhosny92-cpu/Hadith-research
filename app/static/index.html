@@ -136,7 +136,7 @@ async function run(){
   results.innerHTML = `<div class="state">… جارٍ التنفيذ</div>`;
   try{
     if(mode === "search"){
-      const d = await (await fetch(`/search?q=${encodeURIComponent(query)}&limit=5000`)).json();
+      const d = await (await fetch(`/search?q=${encodeURIComponent(query)}`)).json();
       renderList(d.results || [], "نتيجة", "لا توجد نتائج");
     } else if(mode === "ask"){
       const d = await (await fetch(`/ask?q=${encodeURIComponent(query)}`)).json();
@@ -148,7 +148,7 @@ async function run(){
       });
       results.innerHTML = html;
     } else {
-      const d = await (await fetch(`/takhrij?q=${encodeURIComponent(query)}&limit=5000`)).json();
+      const d = await (await fetch(`/takhrij?q=${encodeURIComponent(query)}`)).json();
       renderList(d.parallels || [], "رواية موازية", "لا توجد روايات موازية");
     }
   } catch(e){
