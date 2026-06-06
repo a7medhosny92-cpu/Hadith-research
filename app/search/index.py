@@ -324,13 +324,17 @@ class SharhIndex:
 
     @classmethod
     def build_from_processed(
-        cls, sharh_dir: str | Path, db_path: str | Path = ":memory:"
+        cls, sharh_dir: str | Path, db_path: str | Path = ":memory:", on_progress=None
     ) -> "SharhIndex":
+        """Build the شرح index. ``on_progress(name, total_chunks)`` is called after each
+        commentary file — this is the long step, so callers can show progress."""
         index = cls(db_path)
         directory = Path(sharh_dir)
         if directory.exists():
             for jsonl in sorted(directory.glob("*.jsonl")):
                 index.add(_read_jsonl(jsonl))
+                if on_progress is not None:
+                    on_progress(jsonl.stem, index.count())
         return index
 
     def search(
