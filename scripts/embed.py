@@ -57,7 +57,14 @@ def _cache_lookup(con: sqlite3.Connection, hashes: list[str]) -> dict[str, bytes
 
 
 def seed_cache(settings: Settings) -> int:
-    """Populate the embed cache from an existing (consistent) vectors.db — no embedding."""
+    """Populate the embed cache from an existing vectors.db — *only if* it is actually
+    aligned with the current index.db.
+
+    The cache is keyed by the hash of the embedding text, but vectors.db is keyed by row
+    id; seeding pairs them by row id. If the index was rebuilt after the vectors
+    (re-indexing reassigns ids), that pairing is wrong for the shifted rows and would
+    **poison** the cache. So we verify alignment first (same count + sample vectors that
+    actually match the text) and refuse otherwise, pointing at ``--fresh``."""
     if not settings.index_path.exists() or not settings.vector_index_path.exists():
         print("Need both index.db and vectors.db to seed the cache.")
         return 0
@@ -66,21 +73,39 @@ def seed_cache(settings: Settings) -> int:
     if not sample:
         print("vectors.db is empty — nothing to seed.")
         return 0
-    dim = len(sample[0]) // 4
-    digest = _digester(settings.embedding_model, dim)
     by_id = dict(vcon.execute("SELECT id, v FROM vec"))
-    cache = _open_cache(settings.embed_cache_path)
-    seeded = 0
-    for rowid, text in HadithIndex(settings.index_path).iter_for_embedding():
+    rows = list(HadithIndex(settings.index_path).iter_for_embedding())
+    refuse = ("Refusing to seed: vectors.db is NOT aligned with index.db (built at different "
+              "times). Run `python -m scripts.embed --fresh` to rebuild vectors + cache cleanly.")
+    if len(rows) != len(by_id):
+        print(f"{refuse}\n  (index has {len(rows)} hadith, vectors has {len(by_id)}.)")
+        return 0
+    # verify on a spread of samples: embed the text and compare to the stored vector — a
+    # shifted tail (the real failure mode) shows up as a low cosine.
+    from app.search.embeddings import cosine, load_embedder
+    embedder = load_embedder(settings)
+    if embedder.dim != len(sample[0]) // 4:
+        print(f"{refuse}\n  (model dim {embedder.dim} ≠ vectors dim {len(sample[0]) // 4}.)")
+        return 0
+    n = len(rows)
+    for k in sorted({0, n // 4, n // 2, 3 * n // 4, n - 1}):
+        rowid, text = rows[k]
         blob = by_id.get(rowid)
-        if blob is not None:
-            cache.execute("INSERT OR REPLACE INTO vec (h, v) VALUES (?, ?)", (digest(text), blob))
-            seeded += 1
+        stored = array("f")
+        if blob:
+            stored.frombytes(blob)
+        if not blob or cosine(embedder.embed([text])[0], stored.tolist()) < 0.98:
+            print(f"{refuse}\n  (sample row {rowid} mismatched.)")
+            return 0
+    digest = _digester(settings.embedding_model, embedder.dim)
+    cache = _open_cache(settings.embed_cache_path)
+    for rowid, text in rows:
+        cache.execute("INSERT OR REPLACE INTO vec (h, v) VALUES (?, ?)", (digest(text), by_id[rowid]))
     cache.commit()
     cache.close()
-    print(f"Seeded {seeded} vectors into {settings.embed_cache_path} — the next embed will "
-          "reuse every unchanged matn.")
-    return seeded
+    print(f"Seeded {len(rows)} vectors into {settings.embed_cache_path} (alignment verified) — "
+          "the next embed will reuse every unchanged matn.")
+    return len(rows)
 
 
 def embed_corpus(settings: Settings, *, batch: int = 128, use_cache: bool = True) -> tuple[int, int, int]:
@@ -141,6 +166,9 @@ def main() -> None:
     ap.add_argument("--seed-cache", action="store_true",
                     help="populate the cache from an existing vectors.db, then exit (no embedding)")
     ap.add_argument("--no-cache", action="store_true", help="ignore the cache and embed everything")
+    ap.add_argument("--fresh", action="store_true",
+                    help="delete the cache first, then re-embed everything from scratch — use this "
+                         "to recover from a stale/poisoned cache (rebuilds vectors + a clean cache)")
     args = ap.parse_args()
 
     settings = get_settings()
@@ -150,6 +178,9 @@ def main() -> None:
     if args.seed_cache:
         seed_cache(settings)
         return
+    if args.fresh and settings.embed_cache_path.exists():
+        settings.embed_cache_path.unlink()
+        print(f"Cleared {settings.embed_cache_path} — recomputing all vectors from scratch.")
 
     embedder = load_embedder(settings)
     total = HadithIndex(settings.index_path).count()
