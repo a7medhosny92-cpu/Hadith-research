@@ -12,7 +12,7 @@ from functools import lru_cache
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import get_settings
-from app.qa.isnad import analyze_isnad
+from app.qa.isnad import analyze_isnad, continuity
 from app.rijal import RijalIndex, load_entries
 from app.rijal.graph import NarratorGraph
 from app.routers.search import get_index
@@ -40,30 +40,6 @@ def get_graph() -> NarratorGraph | None:
     return _graph()
 
 
-def _continuity(narrators: list[dict], graph: NarratorGraph) -> dict:
-    """Check each link against the corpus network: is this تلميذ→شيخ pair ever recorded?
-
-    A link never seen together is a flag for a possible break (انقطاع) — a *structural*
-    hint from the texts, not a verdict on سماع."""
-    links = []
-    for student, teacher in zip(narrators, narrators[1:]):
-        weight = graph.link_weight(student["name"], teacher["name"])
-        links.append(
-            {"from": student["name"], "to": teacher["name"], "count": weight, "seen": weight > 0}
-        )
-    seen = sum(1 for link in links if link["seen"])
-    if not links:
-        note = "السند قصير؛ لا حلقات للمقابلة."
-    elif seen == len(links):
-        note = "كلّ حلقات الإسناد لها رواية معروفة في النصوص."
-    else:
-        note = (
-            f"{len(links) - seen} من {len(links)} حلقة لم تُعرف روايتها في النصوص؛ "
-            "يُنظر في الاتصال (قد يكون انقطاعًا أو اختلاف صيغة الاسم)."
-        )
-    return {"links": links, "seen": seen, "total": len(links), "note": note}
-
-
 @router.get("/verify-isnad")
 def verify_isnad(
     hadith_id: int | None = Query(None, description="indexed hadith whose isnad to analyse"),
@@ -85,5 +61,5 @@ def verify_isnad(
     analysis = analyze_isnad(chain, rijal=rijal).to_dict()
     result = {"source": source, "analysis": analysis}
     if graph is not None and graph.count():
-        result["continuity"] = _continuity(analysis["narrators"], graph)
+        result["continuity"] = continuity(analysis["narrators"], graph)
     return result
