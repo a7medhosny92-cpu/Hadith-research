@@ -140,8 +140,11 @@
   .rawi-item{display:flex;justify-content:space-between;gap:10px;align-items:center;
     padding:8px 4px;border-bottom:1px solid var(--line);font-size:1.08rem}
   .rawi-summary{margin-top:10px;color:#3a3328;line-height:2.1;font-size:1.08rem}
-  .audit-case{cursor:pointer;transition:background .12s}
-  .audit-case:hover{background:#f0f7f3}
+  .audit-head{cursor:pointer;transition:background .12s}
+  .audit-head:hover{background:#f0f7f3}
+  .case-box{display:none;margin:4px 2px 16px;border-inline-start:3px solid var(--gold);
+    padding:8px 14px;background:#fcfaf4;border-radius:0 10px 10px 0}
+  .case-box.show{display:block}
   .sources{margin:16px 2px;color:var(--muted);font-size:.92rem;line-height:1.9;
     border-top:1px dashed var(--line);padding-top:10px}
   .rulings{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
@@ -839,8 +842,18 @@ function isnadVia(v){
   return "";
 }
 function renderIsnad(d){
-  const a = d.analysis || {}, r = d.ruling, cont = d.continuity;
+  const a = d.analysis || {}, r = d.ruling, cont = d.continuity, s = d.source || {};
   let html = "";
+  // 0) the hadith itself — matn, book/citation, and the chain text (freely selectable)
+  const cite0 = [s.collection, (s.number != null ? "رقم " + s.number : null),
+                 (s.page != null ? "ص " + s.page : null)].filter(Boolean).join("  ·  ");
+  if(s.matn || s.isnad || cite0){
+    html += `<div class="card">`
+      + (s.matn ? `<div class="matn">${esc(s.matn)}</div>` : "")
+      + (cite0 ? `<div class="cite"><span>${esc(cite0)}</span></div>` : "")
+      + (s.isnad ? `<div class="chain"><span class="chain-lbl">الإسناد:</span> ${esc(s.isnad)}</div>` : "")
+      + `</div>`;
+  }
   // 1) the bottom-line verdict «الحكم على الإسناد»
   if(r){
     const cls = TONE[r.tone] || "g-other";
@@ -919,6 +932,18 @@ function chainVerdictHtml(d){
   if(cont && cont.note) html += `<div class="rawi-summary">${esc(cont.note)}</div>`;
   if(r && r.disclaimer) html += `<div class="note" style="margin-top:6px">${esc(r.disclaimer)}</div>`;
   return html || `<div class="note">تعذّر تحليل هذا الإسناد</div>`;
+}
+
+// A full inline case for the التدقيق tab: the hadith (matn), its book/citation, the chain
+// text, then the verdict — everything freely selectable, shown in place (no navigation).
+function caseDetailHtml(d){
+  const s = d.source || {};
+  const cite = [s.collection, (s.number != null ? "رقم " + s.number : null),
+                (s.page != null ? "ص " + s.page : null)].filter(Boolean).join("  ·  ");
+  return (s.matn ? `<div class="matn">${esc(s.matn)}</div>` : "")
+    + (cite ? `<div class="cite"><span>${esc(cite)}</span></div>` : "")
+    + (s.isnad ? `<div class="chain"><span class="chain-lbl">الإسناد:</span> ${esc(s.isnad)}</div>` : "")
+    + chainVerdictHtml(d);
 }
 
 // Study notebook (دفتري): the items you saved with the ★ star, each with your own note.
@@ -1218,8 +1243,10 @@ async function renderAudit(){
     html += `<div class="comp-head">${esc((d.labels || {})[code] || code)} <span class="simbadge">(${total})</span></div>`;
     cases.forEach(c => {
       const cite = [c.collection, (c.number != null ? "رقم " + c.number : null)].filter(Boolean).join("  ·  ");
-      html += `<div class="rawi-item audit-case" data-id="${c.id}"><span>${esc(c.detail)}</span>`
-        + `<span class="simbadge">${esc(cite)} ⟶</span></div>`;
+      html += `<div class="audit-case" data-id="${c.id}">`
+        + `<div class="rawi-item audit-head"><span>${esc(c.detail)}</span>`
+        + `<span class="simbadge">${esc(cite)} ▾</span></div>`
+        + `<div class="case-box"></div></div>`;
     });
     if(cases.length < total) html += `<div class="note">… و${total - cases.length} حالةً أخرى في التقرير</div>`;
   });
@@ -1290,13 +1317,20 @@ results.addEventListener("click", e => {
   run();                                                                 // then run the takhrij
 });
 
-// Audit (التدقيق): click a flagged case to open its isnad analysis (الإسناد tab).
-results.addEventListener("click", e => {
-  const row = e.target.closest(".audit-case");
-  if(!row) return;
-  q.value = row.dataset.id;                                            // the hadith's index id
-  document.querySelector('.modes button[data-mode="isnad"]').click();  // → الإسناد tab
-  run();
+// Audit (التدقيق): click a case to expand its hadith + chain + verdict IN PLACE (no
+// navigation, so you keep your spot in the list; the panel's text is freely selectable).
+results.addEventListener("click", async e => {
+  const head = e.target.closest(".audit-head");
+  if(!head) return;
+  const wrap = head.parentElement, box = wrap.querySelector(".case-box");
+  const open = box.classList.toggle("show");
+  const arrow = head.querySelector(".simbadge");
+  if(arrow) arrow.textContent = arrow.textContent.replace(/[▾▴]\s*$/, open ? "▴" : "▾");
+  if(!open || box.dataset.loaded) return;
+  box.dataset.loaded = "1";
+  box.innerHTML = `<div class="note">… جارٍ التحميل</div>`;
+  try { box.innerHTML = caseDetailHtml(await getJSON(`/verify-isnad?hadith_id=${encodeURIComponent(wrap.dataset.id)}`)); }
+  catch(_){ box.innerHTML = `<div class="note">تعذّر التحميل</div>`; box.dataset.loaded = ""; }
 });
 
 // Search controls (mode/field/group/sort): re-sort in place, or refetch with the new state.
