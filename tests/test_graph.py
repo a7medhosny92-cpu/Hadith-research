@@ -25,15 +25,23 @@ def test_prophet_variants_collapse_to_one_node():
     assert teachers[0]["count"] == 3
 
 
-def test_relatives_make_no_hub_node_and_break_the_chain():
+def test_kinship_resolves_to_real_ancestors_not_a_hub():
     g = NarratorGraph(":memory:")
-    g.add_chain(["عمرو بن شعيب", "أبيه", "جده"])
-    g.add_chain(["بهز بن حكيم", "أبيه", "جده"])
+    g.add_chain(["عمرو بن شعيب", "أبيه", "جده", "النبي"])
+    g.add_chain(["بهز بن حكيم", "أبيه", "جده", "النبي"])
     g.commit()
-    # «أبيه»/«جده» are not nodes, so they never become a shared teacher/student hub
+    # «أبيه»/«جده» are never nodes themselves (no shared bogus hub) …
     assert g.resolve("أبيه") is None
     assert g.resolve("جده") is None
-    assert g.teachers("عمرو بن شعيب") == []
+    # … the father is named from the nasab («عمرو بن شعيب» → شعيب) …
+    assert {t["name"] for t in g.teachers("عمرو بن شعيب")} == {"شعيب"}
+    assert {t["name"] for t in g.teachers("بهز بن حكيم")} == {"حكيم"}
+    # … and the *unnamed* grandfather keeps the link via an ANCHORED node, not a hub:
+    # «جدّ عمرو بن شعيب» ≠ «جدّ بهز بن حكيم», and the chain reaches the Prophet.
+    assert {t["name"] for t in g.teachers("شعيب")} == {"جدّ عمرو بن شعيب"}
+    assert {t["name"] for t in g.teachers("جدّ عمرو بن شعيب")} == {"النبي ﷺ"}
+    assert g.resolve("جدّ بهز بن حكيم") is not None
+    assert g.link_weight("جدّ عمرو بن شعيب", "النبي ﷺ") == 1
 
 
 def test_disambiguates_sufyan_from_neighbours():

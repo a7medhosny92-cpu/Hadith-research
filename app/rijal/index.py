@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator
 
-from app.parsing.normalize import normalize_for_search
+from app.parsing.normalize import fold_kunya, normalize_for_search
 from app.rijal.grades import classify
 
 # Honorific ligatures (ﷺ ﵁ …), Quranic/honorific marks, and spelled-out eulogies.
@@ -33,14 +33,21 @@ _HONORIFIC_PHRASE = re.compile(
 _STOP = {normalize_for_search(w) for w in (
     "قال قالت يقول سمع سمعت يحدث أنه حدثنا حدثني أخبرنا أخبرني عن نا ثنا يعني المنبر بن ابن"
 ).split()}
+# A query that, cleaned, is *only* one of these identifies no one — a bare kunya particle
+# (أبو/أبي/أبا), «أم», or «عبد». We refuse to match rather than guess: «أبي» would otherwise
+# hit «عائشة بنت أبي بكر» through «بنت أبي بكر», and «عبد» any «عبد الله».
+_NON_IDENTIFYING = {normalize_for_search(w) for w in "أبو أبي أبا أم عبد".split()}
 
 
 def _clean_seq(name: str) -> list[str]:
-    """Folded name tokens **in order**, de-duplicated, honorifics/connectors dropped."""
+    """Folded name tokens **in order**, de-duplicated, honorifics/connectors dropped.
+
+    Kunya cases are unified (أبو/أبا/أبي → أبو) before «بن» is dropped, so «أبي موسى»
+    matches «أبو موسى»; «أبي بن …» stays أُبَيّ (a name, not a kunya)."""
     text = _HONORIFIC_PHRASE.sub(" ", _HONORIFIC_CH.sub(" ", name or ""))
     seen: set[str] = set()
     out: list[str] = []
-    for t in normalize_for_search(text).split():
+    for t in fold_kunya(normalize_for_search(text).split()):
         if t and t not in _STOP and t not in seen:
             seen.add(t)
             out.append(t)
@@ -118,7 +125,10 @@ class RijalIndex:
                 source=raw.get("source"),
                 opinions=raw.get("opinions"),
             )
-            seqs = [s for s in (_clean_seq(f) for f in (entry.name, *entry.aliases)) if s]
+            # Match on the name, its aliases, AND the kunya — so a chain that cites a man
+            # by his kunya (أبو هريرة) links to his entry even without an explicit alias.
+            forms = (entry.name, *entry.aliases, *( (entry.kunya,) if entry.kunya else () ))
+            seqs = [s for s in (_clean_seq(f) for f in forms) if s]
             self._entries.append(entry)
             self._forms.append([set(s) for s in seqs])
             self._form_seqs.append(seqs)
@@ -141,6 +151,8 @@ class RijalIndex:
         query = set(query_seq)
         if not query:
             return None
+        if len(query) == 1 and query_seq[0] in _NON_IDENTIFYING:
+            return None     # a bare kinship/connector particle — identifies no one
 
         contained: list[tuple[int, RijalEntry]] = []   # (specificity, entry)
         partial: list[tuple[float, RijalEntry]] = []    # (overlap, entry)

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from app.parsing.normalize import normalize_for_search
+from app.parsing.normalize import fold_kunya, normalize_for_search
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS narrator (
@@ -39,19 +39,23 @@ _PROPHET = {"النبي", "رسول", "الله", "نبي"}
 _EULOGY_TOKENS = {"صلي", "عليه", "وسلم", "واله", "وصحبه", "سلم", "عن"}
 # The single canonical node every Prophet reference collapses to.
 PROPHET_NODE = "النبي ﷺ"
-# Relational pronouns (عن أبيه عن جده): real in the text but not graph-able narrators —
-# every «أبيه» would otherwise merge into one bogus hub that is everyone's teacher.
-_RELATIVE = {normalize_for_search(w) for w in (
-    "أبيه أبيها أمه أمها جده جدها جدته ابنه ابنها بنته عمه عمها خاله خالها أخيه أخيها أخته"
-).split()}
-
-
 def name_tokens(text: str) -> frozenset[str]:
-    """Folded tokens for narrator-name matching (kunya cases أبو/أبا/أبي unified)."""
-    out = set()
-    for t in normalize_for_search(text or "").split():
-        out.add("ابو" if t in ("ابو", "ابا", "ابي") else t)
-    return frozenset(out)
+    """Folded tokens for narrator-name matching (kunya cases أبو/أبا/أبي unified, but
+    «أبي بن …» kept as the name أُبَيّ)."""
+    return frozenset(fold_kunya(normalize_for_search(text or "").split()))
+
+
+# Kinship words that are real in the text but not graph-able narrators: third-person
+# possessives (عن أبيه عن جده) AND first-person (حدثني أبي عن أمي), plus a bare kunya
+# particle (أبو/أبي/أبا on its own). Without the first-person forms, every «أبي» («my
+# father») merges into one bogus hub that becomes everyone's teacher. Built through
+# name_tokens so the folding (أبي → ابو) matches the test in _is_relative.
+_RELATIVE: set[str] = set()
+for _w in (
+    "أبيه أبيها أمه أمها جده جدها جدته ابنه ابنها بنته عمه عمها خاله خالها أخيه أخيها أخته "
+    "أبي أمي جدي جدتي ابني ابنتي بنتي أخي أختي عمي عمتي خالي خالتي أبو أبا"
+).split():
+    _RELATIVE |= name_tokens(_w)
 
 
 def is_prophet(name: str) -> bool:
@@ -65,6 +69,72 @@ def is_prophet(name: str) -> bool:
 def _is_relative(name: str) -> bool:
     toks = name_tokens(name)
     return len(toks) == 1 and next(iter(toks)) in _RELATIVE
+
+
+# A kinship reference names a *real* person only by relation: «أبيه» (his father), «جده»
+# (his grandfather), «أمه» (his mother), «أخيه» (his brother), «عمه/خاله» (his uncle),
+# «ابنه» (his son)… or a bare first-person form («أبي» = my father). Each is resolved to
+# the actual person, or kept as an *anchored* placeholder «<label> فلان» — never a hub.
+# «أبي بن كعب»/«أبي بكر» are NOT this (a person / a kunya): a first-person form counts only
+# when bare.
+_NASAB_TOK = {"بن", "ابن"}
+# normalized first token → (placeholder label, nasab degree: 1=father, 2=grandfather,
+# 0=not a lineal ancestor, so only an apposition or a placeholder can name him).
+_KIN: dict[str, tuple[str, int]] = {
+    "ابيه": ("والد", 1), "ابيها": ("والد", 1), "ابي": ("والد", 1),
+    "جده": ("جدّ", 2), "جدها": ("جدّ", 2), "جدي": ("جدّ", 2), "جدته": ("جدّة", 2),
+    "امه": ("والدة", 0), "امها": ("والدة", 0), "امي": ("والدة", 0),
+    "اخيه": ("أخو", 0), "اخيها": ("أخو", 0), "اخي": ("أخو", 0), "اخته": ("أخت", 0),
+    "عمه": ("عمّ", 0), "عمها": ("عمّ", 0), "عمي": ("عمّ", 0),
+    "خاله": ("خال", 0), "خالها": ("خال", 0), "خالي": ("خال", 0),
+    "ابنه": ("نجل", 0), "ابنها": ("نجل", 0), "ابني": ("نجل", 0),
+    "بنته": ("بنت", 0), "بنتي": ("بنت", 0),
+}
+# First-person forms (أبي/جدي/أخي…) count only when *bare* — «أبي بكر» is a kunya, not «my
+# father»; «أبي بن كعب» the name أُبَيّ. («أبو» folds to it but isn't here → bare أبو drops.)
+_KIN_FIRST_PERSON = {"ابي", "جدي", "امي", "اخي", "عمي", "خالي", "ابني", "بنتي"}
+# Placeholder label prefixes (deliberately NOT «أم»/«ابن», which begin real names like
+# «أم سلمة» / «ابن عباس») — used to spot a synthetic node so it isn't graded.
+_KIN_LABELS = {"والد", "والدة", "جدّ", "جد", "جدّة", "أخو", "أخت", "عمّ", "خال", "نجل", "بنت"}
+
+
+def _kin_relation(name: str) -> tuple[str, int] | None:
+    """``(label, degree)`` if ``name`` is a kinship reference, else ``None``."""
+    toks = normalize_for_search(name or "").split()
+    if not toks:
+        return None
+    head, info = toks[0], _KIN.get(toks[0])
+    if info is None or (head in _KIN_FIRST_PERSON and len(toks) > 1):
+        return None
+    return info
+
+
+def _ancestor_from_nasab(anchor: str, degree: int) -> str:
+    """The ``degree``-th ancestor named inside ``anchor``'s nasab, or '' if not that deep:
+    «عمرو بن شعيب» @1 → «شعيب»; «عبد الله بن أحمد بن حنبل» @1 → «أحمد بن حنبل»."""
+    parts = anchor.split()
+    norm = [normalize_for_search(p) for p in parts]
+    seen = 0
+    for k, tok in enumerate(norm):
+        if tok in _NASAB_TOK:
+            seen += 1
+            if seen == degree and k + 1 < len(parts):
+                return " ".join(parts[k + 1:]).strip()
+    return ""
+
+
+def _kin_node(label: str, anchor: str) -> str:
+    """A synthetic, *anchored* node for an unnamed relative — «والد فلان» / «أخو فلان».
+
+    Keyed to one specific narrator, so the link is kept without inventing a name and
+    without a hub: «جدّ عمرو بن شعيب» ≠ «جدّ بهز بن حكيم»."""
+    return f"{label} {anchor}"
+
+
+def is_unnamed_kin(name: str) -> bool:
+    """True for a synthetic «<relation> of X» node (a real but unnamed link), so the rijal
+    layer doesn't mis-grade it as X himself."""
+    return bool(name) and name.split(" ", 1)[0] in _KIN_LABELS
 
 
 # Shared bare names (المشترك): same name, different men. Disambiguate by the company
@@ -132,22 +202,66 @@ class NarratorGraph:
         )
         return cur.lastrowid
 
-    def add_chain(self, names: Iterable[str]) -> None:
+    def add_chain(self, names: Iterable[str], *, canon=None) -> None:
         """Record a chain: each name narrates *from* the next one (تلميذ → شيخ).
 
         Every Prophet reference collapses to one canonical node; a shared name (سفيان …)
-        is resolved from the *whole chain* (a telltale شيخ/تلميذ may be more than one link
-        away); relational pronouns (أبيه/جده) create **no** node and break the link on
-        both sides (so they don't form a hub)."""
+        is resolved from the *whole chain*. A kinship reference (أبيه/جده, or bare «أبي»)
+        is **resolved to the real ancestor** — from an apposition or the adjacent
+        narrator's nasab — so a real father (often a Companion) is kept, not dropped; only
+        an unidentifiable one breaks the chain (never a hub). Other relatives (أمه/أخيه)
+        and a bare kunya particle break the chain.
+
+        When a :class:`~app.rijal.canon.Canonicalizer` is supplied, each name is also mapped
+        to its رجال canonical identity (الاسم/الكنية/اللقب موحَّدة) so the same man written
+        differently collapses to one node — using the *rest of the chain* as context to
+        break ties, and keeping the surface form when unsure."""
         names = list(names)
-        ids: list[int | None] = []
+        n = len(names)
+        ctx_tokens = [canon.tokens(x) for x in names] if canon is not None else None
+
+        def _canonical(name: str, i: int) -> str:
+            if is_prophet(name):
+                return PROPHET_NODE
+            name = disambiguate(name, [x for j, x in enumerate(names) if j != i])
+            if canon is None or n <= 1:
+                return name
+            context = frozenset().union(*(t for j, t in enumerate(ctx_tokens) if j != i))
+            return canon.canonical(name, context)
+
+        resolved: list[str | None] = [None] * n
+        # pass 1 — ordinary narrators (everything that is not a kinship reference)
         for i, name in enumerate(names):
-            if _is_relative(name):
-                ids.append(None)            # a pronoun — not a node; breaks the chain here
+            if not _is_relative(name) and _kin_relation(name) is None:
+                resolved[i] = _canonical(name, i)
+        # pass 2 — kinship references: name the person when the text allows (an apposition,
+        # or the anchor's nasab for father/grandfather), else keep the link via an *anchored*
+        # «<relation> of X» node. Never dropped while there is a specific narrator (anchor).
+        anchor: str | None = None
+        for i, name in enumerate(names):
+            rel = _kin_relation(name)
+            if rel is None:
+                if resolved[i] is not None and len(name_tokens(resolved[i])) >= 2:
+                    anchor = resolved[i]                # a specific narrator to anchor on
                 continue
-            others = [n for j, n in enumerate(names) if j != i]
-            canonical = PROPHET_NODE if is_prophet(name) else disambiguate(name, others)
-            ids.append(self._node_id(canonical))
+            label, degree = rel
+            apposition = " ".join(name.split()[1:]).strip()   # «أبيه أبي موسى» → «أبي موسى»
+            if apposition:
+                resolved[i] = _canonical(apposition, i)
+                anchor = resolved[i]                    # the named relative is the new anchor
+                continue
+            if anchor is None:
+                continue                                # nothing specific to attach to → break
+            named = _ancestor_from_nasab(anchor, degree) if degree else ""
+            if not named:
+                resolved[i] = _kin_node(label, anchor)
+            else:
+                # an ancestor's name is a *suffix* of the son's nasab, so the canonicaliser
+                # may pull it back up to the son — keep the raw ancestor name when it does.
+                cand = _canonical(named, i)
+                resolved[i] = named if name_tokens(cand) == name_tokens(anchor) else cand
+
+        ids = [self._node_id(x) if x else None for x in resolved]
         for student, teacher in zip(ids, ids[1:]):
             if not student or not teacher or student == teacher:
                 continue
@@ -174,8 +288,8 @@ class NarratorGraph:
         """Find the node for ``name``: exact token match, else the most-narrated node
         whose tokens contain the query (so «أبو هريرة» finds «أبو هريرة الدوسي»)."""
         q = name_tokens(name)
-        if not q:
-            return None
+        if not q or (len(q) == 1 and next(iter(q)) in _RELATIVE):
+            return None     # empty, or a bare kinship particle (أبي/أبيه/جده) — no node
         exact = self._con.execute(
             "SELECT id, norm, name, freq FROM narrator WHERE norm = ?",
             (" ".join(sorted(q)),),
@@ -216,6 +330,20 @@ class NarratorGraph:
             "SELECT weight FROM link WHERE teacher = ? AND student = ?", (t.id, s.id)
         ).fetchone()
         return row[0] if row else 0
+
+    def adjacency(self) -> dict[str, list[str]]:
+        """Every node → the names of *all* its neighbours (شيوخ ∪ تلاميذ).
+
+        Used to derive each narrator's «recorded company» for context disambiguation —
+        the telltale names that decide which of two homonyms a bare ism refers to."""
+        name_by_id = {n.id: n.name for n in self._nodes()}
+        adj: dict[str, set[str]] = {}
+        for teacher, student in self._con.execute("SELECT teacher, student FROM link"):
+            tn, sn = name_by_id.get(teacher), name_by_id.get(student)
+            if tn and sn:
+                adj.setdefault(tn, set()).add(sn)
+                adj.setdefault(sn, set()).add(tn)
+        return {name: sorted(neigh) for name, neigh in adj.items()}
 
     def count(self) -> int:
         return self._con.execute("SELECT count(*) FROM narrator").fetchone()[0]
