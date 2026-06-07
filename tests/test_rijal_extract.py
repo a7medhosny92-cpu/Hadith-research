@@ -93,6 +93,17 @@ def test_lookup_resolves_isnad_names():
     assert idx.lookup("ثابت بن أسلم البناني").entry.category == "ثقة"
 
 
+def test_honorific_descriptors_are_stripped_for_matching():
+    # «زوج النبي ﷺ» / «أم المؤمنين» are titles, not name parts — a Companion carrying them
+    # in the chain must still resolve (and be graded), not show as «غير معروف».
+    from app.rijal import load_seed
+    idx = RijalIndex(load_seed())
+    for q in ("عائشة زوج النبي صلى الله عليه وسلم", "أم المؤمنين عائشة", "عائشة"):
+        m = idx.lookup(q)
+        assert m is not None and m.entry.name == "عائشة بنت أبي بكر"
+        assert m.entry.category == "صحابي"
+
+
 def test_long_name_is_not_a_magnet_for_bare_tokens():
     # A real but long name whose ancestors include common isms (أنس، معمر) must not steal
     # bare queries: «معمر» is معمر بن راشد (his own ism), not «أسباط بن … بن معمر …» (an avo).
