@@ -619,10 +619,26 @@ function methodCard(s){
         + row("المزايا", s.pros, "m-pros") + row("الحدود", s.cons, "m-cons");
   return `<div class="card m-card"><h3 class="m-h">${esc(s.h)}</h3>${body}</div>`;
 }
-function renderMethodology(){
+// The books the app actually uses (with editions), fetched live from /sources so the
+// list stays in sync with the corpus — grouped into collections / شروح / rijal.
+function booksCard(s){
+  const list = arr => (arr && arr.length)
+    ? arr.map(b => `<div class="rawi-item"><span>${esc(b.name)}</span>`
+        + `<span class="simbadge">${b.id}</span></div>`).join("")
+    : `<div class="note">— (لم تُنزَّل بعد)</div>`;
+  return `<div class="card m-card"><h3 class="m-h">الكتب والمصادر (مع الطبعات)</h3>`
+    + `<p class="m-p">الكتب التي يعتمد عليها التطبيق فعليًّا، باسم الطبعة كما ورد من المصدر:</p>`
+    + `<div class="m-row"><span class="m-lbl m-src">كتب السنة</span></div>${list(s.collections)}`
+    + `<div class="m-row"><span class="m-lbl m-how">الشروح</span></div>${list(s.commentaries)}`
+    + `<div class="m-row"><span class="m-lbl m-pros">الرجال</span></div>${list(s.rijal)}`
+    + `</div>`;
+}
+async function renderMethodology(){
   results.innerHTML =
     `<div class="note">منهجية التطبيق: من أين يأتي كلُّ معطًى، وكيف يُستخرج، وما مزاياه وحدوده</div>`
     + METHODOLOGY.map(methodCard).join("");
+  try { results.insertAdjacentHTML("beforeend", booksCard(await getJSON("/sources"))); }
+  catch(_) {}
 }
 
 // Architecture (البنية): how the app is built, how it works, where it can improve, and
