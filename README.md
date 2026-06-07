@@ -185,6 +185,7 @@ uvicorn app.main:app --reload
 | `GET /verify-isnad?hadith_id=…` (or `isnad=…`) | parse the **chain of narrators**, flag سماع/عنعنة/تحويل, **grade each narrator** (رجال), check each link's **continuity (اتصال)** against the narrator network, and return a single bottom-line **verdict «الحكم على الإسناد»** that fuses the weakest-link grade + الاتصال + عنعنة (a study verdict on the apparent state of the men, not a full تصحيح — needs النظر في العلّة والشذوذ) |
 | `GET /narrator?name=…` | a narrator's place in the network (شبكة الرواة): his **شيوخ** (narrates from) and **تلاميذ** (narrate from him), weighted, plus his grade |
 | `GET/POST/PATCH/DELETE /notebook` | your **study notebook (دفتري)**: save a hadith / narrator / answer / isnad with a personal note + tags, search them, edit, delete — stored in `data/notebook.db`, **never touched by index rebuilds** |
+| `GET /sources` | the books the app draws on (collections · شروح · rijal) with their **editions** (read from the downloaded files) — powers the books list on the «المنهجية» page |
 
 ```bash
 # examples
