@@ -25,7 +25,11 @@ from app.rijal.grades import classify
 # Honorific ligatures (ﷺ ﵁ …), Quranic/honorific marks, and spelled-out eulogies.
 _HONORIFIC_CH = re.compile(r"[﴾-﷿ؐ-ؚۖ-ۭ]")
 _HONORIFIC_PHRASE = re.compile(
-    r"رضي الله عنه[ام]*|صلى الله عليه وسلم|عليه السلام|رحمه الله|رضوان الله عليه"
+    r"رضي الله عنه[ام]*|صلى الله عليه وسلم|عليه السلام|رحمه الله|رضوان الله عليه|"
+    # honorific descriptors that aren't part of a name — «عائشة زوج النبي ﷺ» / «… أم
+    # المؤمنين» would otherwise stay unmatched (and ungraded) and split into many nodes.
+    r"أم المؤمنين|أمير المؤمنين|"
+    r"(?:زوج|زوجة|أم|بنت|عم|عمة|خال|خالة|خادم|مولى|مولاة|صاحب|مؤذن|حب|رضيع)\s+(?:النبي|رسول الله)"
 )
 # Tokens that are transmission verbs / spillover / non-discriminating connectors, never
 # an identifying part of a name. «بن/ابن» are dropped so «خالد بن عمر» and «عمر بن الخطاب»
