@@ -163,9 +163,14 @@ def analyze_isnad(text: str, rijal: "RijalIndex | None" = None) -> IsnadAnalysis
     matches: list["RijalMatch | None"] = []
     for narrator in narrators:
         record = asdict(narrator)
+        prophet = is_prophet(narrator.name)
+        record["is_prophet"] = prophet
         if rijal is not None:
-            match = rijal.lookup(narrator.name)
-            matches.append(match)
+            # the Prophet ﷺ is the source of the report, not a narrator to be graded —
+            # never look him up (he'd otherwise match a Companion and read «صحابي»).
+            match = None if prophet else rijal.lookup(narrator.name)
+            if not prophet:
+                matches.append(match)
             record["rijal"] = match.to_dict() if match else None
         narrator_dicts.append(record)
 
@@ -181,7 +186,8 @@ def analyze_isnad(text: str, rijal: "RijalIndex | None" = None) -> IsnadAnalysis
         assessment = None
         notes.append("تقويم عدالة الرواة وضبطهم يتطلّب قاعدة بيانات الرجال (مرّر RijalIndex لتفعيله).")
     else:
-        assessment = _chain_assessment(matches, len(narrators))
+        # total counts only the gradable narrators (the Prophet is excluded above)
+        assessment = _chain_assessment(matches, len(matches))
         notes.append("هذا حكمٌ على الرجال فقط؛ وصحّة الحديث تقتضي أيضًا اتصال السند وانتفاء العلّة والشذوذ.")
 
     return IsnadAnalysis(
@@ -261,10 +267,14 @@ def overall_ruling(analysis: dict, continuity: dict | None = None) -> dict:
         grade, tone = "يُتوقَّف فيه", "other"
         reason = f"{reason}؛ لكن بقي {unknown} راوٍ لم يُعرف في القاعدة فلا يُجزَم"
 
-    # 3) a clear break in the chain weakens an otherwise sound isnad
-    if broken and tone in ("sahih", "hasan", "other"):
-        grade, tone = "ضعيف", "daif"
-        reason = f"{reason}؛ وفي الإسناد انقطاعٌ ظاهر (حلقة غير معروفة في النصوص)"
+    # 3) the network-continuity check is a weak structural HINT, not a verdict: our graph is
+    # built from the same corpus and keyed by canonical name forms, so a missing link is
+    # usually just coverage or a different spelling of a name — NOT a real انقطاع. It must
+    # never flip an otherwise-sound chain (a صحيح البخاري isnad of ثقات would read «ضعيف»);
+    # surface it as a caution to be checked instead.
+    if broken:
+        reason = (f"{reason}؛ ولم نتأكّد من اتّصال إحدى حلقاته في شبكتنا "
+                  "(قد يكون اختلافَ صيغةِ اسمٍ لا انقطاعًا — يُراجَع)")
     elif tone == "sahih" and continuity and continuity.get("total"):
         reason = f"{reason}؛ والإسناد متّصل بحسب الشبكة"
 

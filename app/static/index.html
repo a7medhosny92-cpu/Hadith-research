@@ -863,7 +863,7 @@ function renderIsnad(d){
     const ops = rij && rij.opinions;
     const div = ops && new Set(ops.map(o => o.grade)).size > 1
       ? ` <span class="r-diverge" title="${esc(ops.map(o => (SRC_AUTHOR[o.source]||o.source)+": "+o.grade).join(" · "))}">⚠ اختلفوا</span>` : "";
-    const badge = isProphet(n.name)
+    const badge = (n.is_prophet || isProphet(n.name))
       ? `<span class="grade g-sahih">مصدر الحديث ﷺ</span>`
       : g
         ? `<span class="grade ${rijalClass(g)}" title="${esc(rij.verdict || '')}">${esc(g)}</span>${amb}${div}`
@@ -903,7 +903,7 @@ function chainVerdictHtml(d){
   }
   (a.narrators || []).forEach((n, i) => {
     const rij = n.rijal, g = rij && rij.grade;
-    const badge = isProphet(n.name)
+    const badge = (n.is_prophet || isProphet(n.name))
       ? `<span class="grade g-sahih">مصدر الحديث ﷺ</span>`
       : g ? `<span class="grade ${rijalClass(g)}" title="${esc(rij.verdict || '')}">${esc(g)}</span>`
           : `<span class="simbadge">غير معروف في القاعدة</span>`;

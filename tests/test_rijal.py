@@ -64,6 +64,16 @@ def test_weak_link_drives_the_verdict(rijal):
     assert "ضعيف" in a.rijal_assessment["verdict"]
 
 
+def test_prophet_is_not_graded_as_a_narrator(rijal):
+    # «… عن النبي ﷺ قال» — the Prophet is the source, never looked up in the rijal
+    a = analyze_isnad("حدثنا مالك، عن نافع، عن عبد الله بن عمر، عن النبي ﷺ قال", rijal=rijal)
+    prophet = a.narrators[-1]
+    assert prophet["is_prophet"] is True and prophet["rijal"] is None
+    assert a.reaches_prophet
+    # only the three gradable narrators are counted (the Prophet is excluded)
+    assert a.rijal_assessment["known"] == 3 and a.rijal_assessment["unknown"] == 0
+
+
 def test_analyze_without_rijal_is_unchanged():
     a = analyze_isnad("حدثنا مالك، عن نافع")
     assert a.rijal_assessment is None
