@@ -93,6 +93,20 @@ def test_lookup_resolves_isnad_names():
     assert idx.lookup("ثابت بن أسلم البناني").entry.category == "ثقة"
 
 
+def test_long_name_is_not_a_magnet_for_bare_tokens():
+    # A real but long name whose ancestors include common isms (أنس، معمر) must not steal
+    # bare queries: «معمر» is معمر بن راشد (his own ism), not «أسباط بن … بن معمر …» (an avo).
+    idx = RijalIndex([
+        {"name": "معمر بن راشد", "grade": "ثقة"},
+        {"name": "أسباط بن اليسع بن أنس بن معمر الذهلي أبو طاهر البصري", "grade": "مقبول"},
+        {"name": "أنس بن مالك", "grade": "صحابي"},
+    ])
+    معمر = idx.lookup("معمر")
+    assert معمر.entry.name == "معمر بن راشد" and not معمر.ambiguous   # the short ism wins
+    assert idx.lookup("أنس").entry.name == "أنس بن مالك"
+    assert idx.lookup("أسباط").entry.name.startswith("أسباط")        # the long name still resolves
+
+
 def test_lookup_does_not_overgrade_via_single_token_alias():
     """A different man who merely shares one ism must NOT resolve to the Companion
     (audit RIJ-1: «خالد بن عمر» was wrongly graded عمر بن الخطاب, صحابي rank 10)."""
