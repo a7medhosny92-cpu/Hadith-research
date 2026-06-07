@@ -104,6 +104,17 @@ def test_honorific_descriptors_are_stripped_for_matching():
         assert m.entry.category == "صحابي"
 
 
+def test_umm_al_muminin_is_a_shared_title_not_a_specific_wife():
+    # «أم المؤمنين» is borne by every wife of the Prophet, so the GIVEN NAME must decide —
+    # the bare title resolves to no one (ambiguous), never silently to عائشة.
+    from app.rijal import load_seed
+    idx = RijalIndex(load_seed() + [{"name": "حفصة بنت عمر", "aliases": ["حفصة"], "grade": "صحابية"}])
+    assert idx.lookup("أم المؤمنين") is None
+    assert idx.lookup("أم المؤمنين حفصة").entry.name == "حفصة بنت عمر"
+    assert idx.lookup("حفصة أم المؤمنين").entry.name == "حفصة بنت عمر"
+    assert idx.lookup("أم المؤمنين عائشة").entry.name == "عائشة بنت أبي بكر"
+
+
 def test_long_name_is_not_a_magnet_for_bare_tokens():
     # A real but long name whose ancestors include common isms (أنس، معمر) must not steal
     # bare queries: «معمر» is معمر بن راشد (his own ism), not «أسباط بن … بن معمر …» (an avo).
