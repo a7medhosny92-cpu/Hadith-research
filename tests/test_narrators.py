@@ -52,6 +52,23 @@ def test_disambiguates_shared_name():
     assert any(t["name"] == "عمرو بن دينار" for t in g.teachers("سفيان بن عيينة"))
 
 
+# ── dossier tags each neighbour with its grade (powers the network graph colours) ──
+def test_dossier_grades_neighbours():
+    from app.qa.dossier import narrator_dossier
+    from app.rijal import RijalIndex
+
+    g = NarratorGraph()
+    g.add_chain(["قتيبة", "مالك", "نافع", "ابن عمر", "النبي"])
+    g.commit()
+    rijal = RijalIndex([{"name": "نافع", "grade": "ثقة"}])
+    d = narrator_dossier("مالك", g, rijal)
+    teachers = {t["name"]: t for t in d["teachers"]}
+    assert all("grade" in t for t in d["teachers"])     # every شيخ carries a grade key
+    assert all("grade" in s for s in d["students"])     # every تلميذ too
+    assert teachers["نافع"]["grade"] == "ثقة"           # known grade surfaced for node colour
+    assert teachers["نافع"]["grade"] != d["students"][0].get("grade")  # ungraded قتيبة → None
+
+
 # ── /narrator endpoint ──────────────────────────────────────────────────────────
 @pytest.fixture
 def client(graph) -> TestClient:

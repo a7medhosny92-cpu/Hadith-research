@@ -114,8 +114,15 @@ def narrator_dossier(name: str, graph, rijal: RijalIndex, *, limit: int = 50) ->
         return None
     grade = rijal.lookup(node.name)
     grade_d = grade.to_dict() if grade else None
-    teachers = graph.teachers(node.name, limit=limit)
-    students = graph.students(node.name, limit=limit)
+
+    def _graded(people: list[dict]) -> list[dict]:
+        for p in people:                      # tag each neighbour with its grade (for the graph view)
+            m = rijal.lookup(p["name"])
+            p["grade"] = m.entry.category if m else None
+        return people
+
+    teachers = _graded(graph.teachers(node.name, limit=limit))
+    students = _graded(graph.students(node.name, limit=limit))
     return {
         "kind": "person",
         "name": node.name,

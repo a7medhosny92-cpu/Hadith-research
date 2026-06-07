@@ -140,6 +140,27 @@
   .m-row span:last-child{flex:1;color:#3a3328}
   .m-lbl{flex:0 0 92px;font-weight:700;font-size:.92rem;padding-top:2px}
   .m-src{color:#2a5a8a}.m-how{color:var(--accent)}.m-pros{color:#2f7d4f}.m-cons{color:#b5701a}
+  /* network (الشبكة): the interactive, navigable narrator-graph */
+  .net-top{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:8px 2px}
+  .net-wrap{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:6px;margin:10px 0;box-shadow:0 1px 4px rgba(80,60,20,.06);overflow:hidden}
+  .net{display:block;max-width:100%;height:auto;border-radius:10px;
+    background:radial-gradient(circle at 50% 45%, #fffdf8, #f6f1e6)}
+  .net-node{cursor:pointer}
+  .net-node circle{stroke:#fff;stroke-width:2;transition:stroke .12s,stroke-width .12s}
+  .net-node:hover circle{stroke:var(--gold);stroke-width:3}
+  .net-node.net-center circle{stroke:var(--accent2);stroke-width:3}
+  .net-lbl{font-family:inherit;font-size:13px;fill:#3a3328}
+  .net-node:hover .net-lbl{fill:var(--accent2);font-weight:700}
+  .net-center .net-lbl{font-weight:700;fill:#221d16}
+  .net-edge{stroke:#cabd9f;opacity:.75;stroke-linecap:round}
+  .net-row{font-family:inherit;font-size:14px;fill:var(--gold2);font-weight:700}
+  .net-back{background:var(--card);color:var(--accent);border:1px solid var(--accent);
+    border-radius:9px;padding:7px 16px;font-size:.95rem;cursor:pointer;font-family:inherit}
+  .net-back:hover{background:var(--accent);color:#fff}
+  .net-legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;align-items:center}
+  .net-legend span{display:flex;gap:5px;align-items:center}
+  .net-legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
 </style>
 </head>
 <body>
@@ -154,6 +175,7 @@
     <button data-mode="ask">سؤال</button>
     <button data-mode="takhrij">تخريج</button>
     <button data-mode="narrator">راوٍ</button>
+    <button data-mode="network">الشبكة</button>
     <button data-mode="isnad">الإسناد</button>
     <button data-mode="notebook">دفتري</button>
     <button data-mode="method">المنهجية</button>
@@ -192,9 +214,10 @@
 
 <script>
 const LABELS = {search:"ابحث", ask:"اسأل", takhrij:"خرّج", narrator:"اعرض",
-  isnad:"حقّق", notebook:"ابحث", method:"اعرض", arch:"اعرض"};
+  network:"تنقّل", isnad:"حقّق", notebook:"ابحث", method:"اعرض", arch:"اعرض"};
 const PLACEHOLDER = {search:"اكتب الحديث أو السؤال…", ask:"اكتب سؤالك…",
   takhrij:"اكتب متن الحديث…", narrator:"اكتب اسم الراوي…",
+  network:"اكتب اسم الراوي للتنقّل في شبكته…",
   isnad:"الصق الإسناد… أو رقم حديثٍ مفهرس", notebook:"ابحث في دفترك… (فارغ = الكل)",
   method:"", arch:""};
 const ENGINE_AR = {
@@ -363,6 +386,9 @@ async function run(){
       renderTakhrij(await getJSON(`/takhrij?q=${encodeURIComponent(query)}`));
     } else if(mode === "narrator"){
       renderNarrator(await getJSON(`/narrator?name=${encodeURIComponent(query)}`));
+    } else if(mode === "network"){
+      netHistory = [];                 // fresh trail; navigateNet shows its own errors
+      await navigateNet(query);
     } else if(mode === "isnad"){
       // a number (any digits) → a hadith id to look up; anything else → a pasted chain.
       const num = toAscii(query);
@@ -486,6 +512,112 @@ function renderNarrator(d){
   results.innerHTML = html;
 }
 
+// Network (الشبكة): an interactive, navigable graph of a narrator's place in the
+// isnad web — his شيوخ above (toward the Prophet ﷺ) and تلاميذ below, each node
+// coloured by his grade and clickable to re-centre the graph on him. Reuses the
+// grade-enriched /narrator dossier — no new endpoint.
+let netHistory = [];                       // names visited, for the «رجوع» trail
+async function navigateNet(name, push){
+  if(!name) return;
+  results.innerHTML = `<div class="state">… جارٍ بناء الشبكة</div>`;
+  try{
+    const d = await getJSON(`/narrator?name=${encodeURIComponent(name)}`);
+    if(push !== false && netHistory[netHistory.length - 1] !== d.name) netHistory.push(d.name);
+    renderNetwork(d);
+  }catch(e){
+    const net = !e || !e.message || /failed to fetch|networkerror|load failed/i.test(e.message);
+    results.innerHTML = `<div class="state">${esc(net
+      ? "تعذّر الاتصال بالخادم. تأكّد أنّ التطبيق يعمل." : e.message)}</div>`;
+  }
+}
+function netBack(){
+  if(netHistory.length < 2) return;
+  netHistory.pop();                                       // drop the current narrator
+  navigateNet(netHistory[netHistory.length - 1], false);  // re-show the previous (no push)
+}
+// Node colour = grade, using the same buckets as the rest of the app (rijalClass).
+function netColor(grade){
+  if(!grade) return "#b9ad97";                                  // unknown to the base
+  if(/ثقة|صحاب|حافظ|إمام|ثبت/.test(grade)) return "#1f7a52";     // ثقة فأعلى
+  if(/صدوق|لا بأس|حسن/.test(grade))        return "#a87d27";     // صدوق/حسن
+  if(/ضعيف|متروك|منكر|كذاب|واهٍ/.test(grade)) return "#a5381f";  // ضعيف فمَن دونه
+  return "#8a7f6c";                                             // معروفٌ بلا تمييز
+}
+function _netClip(s){ s = s || ""; return s.length > 16 ? s.slice(0, 15) + "…" : s; }
+function _netNode(x, y, p, r, center){
+  const title = p.name + (p.grade ? " — " + p.grade : " — غير معروف في القاعدة")
+    + (p.count ? " — " + p.count + " حديثًا" : "");
+  return `<g class="net-node${center ? " net-center" : ""}" data-nav="${esc(p.name)}">`
+    + `<title>${esc(title)}</title>`
+    + `<circle cx="${x}" cy="${y}" r="${r}" fill="${netColor(p.grade)}"></circle>`
+    + `<text x="${x}" y="${y + r + 16}" text-anchor="middle" class="net-lbl">${esc(_netClip(p.name))}</text>`
+    + `</g>`;
+}
+function _netEdge(x1, y1, x2, y2, count){
+  const w = (1 + Math.min(5, Math.log2((count || 1) + 1))).toFixed(2);
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="net-edge" stroke-width="${w}"></line>`;
+}
+function renderNetwork(d){
+  const teachers = (d.teachers || []).slice(0, 8);
+  const students = (d.students || []).slice(0, 8);
+  const W = Math.max(680, (results.clientWidth || 760) - 48), H = 560;
+  const cx = W / 2, cy = H / 2, R = 32, r = 22;
+  const yTop = 92, yBot = H - 92;
+  const xOf = (i, n) => n <= 1 ? W / 2 : W * 0.08 + W * 0.84 * i / (n - 1);
+
+  // edges first (drawn under the nodes), then the nodes themselves
+  let edges = "", nodes = "";
+  teachers.forEach((t, i) => {
+    const x = xOf(i, teachers.length);
+    edges += _netEdge(cx, cy - R, x, yTop + r, t.count);
+    nodes += _netNode(x, yTop, t, r, false);
+  });
+  students.forEach((s, i) => {
+    const x = xOf(i, students.length);
+    edges += _netEdge(cx, cy + R, x, yBot - r, s.count);
+    nodes += _netNode(x, yBot, s, r, false);
+  });
+  const centerV = d.grade && (d.grade.verdict || d.grade.grade);
+  nodes += _netNode(cx, cy, {name: d.name, grade: centerV}, R, true);
+
+  const svg = `<svg class="net" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" `
+    + `preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" `
+    + `role="img" aria-label="شبكة الرواة">`
+    + `<text x="${cx}" y="30" text-anchor="middle" class="net-row">شيوخه — يروي عنهم ↑</text>`
+    + `<text x="${cx}" y="${H - 14}" text-anchor="middle" class="net-row">تلاميذه — يروون عنه ↓</text>`
+    + edges + nodes + `</svg>`;
+
+  // info panel for the centred narrator (reuses the راوٍ card pieces)
+  const badge = centerV ? `<span class="grade ${rijalClass(centerV)}">${esc(centerV)}</span>` : "";
+  const save = saveChip({kind:"narrator", title:d.name, body:d.summary || "",
+    meta:{grade:d.grade, sources:d.sources}});
+  const meta = [];
+  if(d.grade && d.grade.death_year) meta.push(`ت ${esc(d.grade.death_year)}هـ`);
+  meta.push(`شيوخ: ${(d.teachers || []).length}`, `تلاميذ: ${(d.students || []).length}`);
+  let info = `<div class="card"><div class="rawi-name">${esc(d.name)} ${badge} ${save}</div>`
+    + `<div class="note" style="margin:6px 0 0">${meta.join("  ·  ")}</div>`;
+  if(d.summary) info += `<div class="rawi-summary">${esc(d.summary)}</div>`;
+  info += opinionsHtml(d.grade && d.grade.opinions);
+  if(d.sources && d.sources.length){
+    info += `<div class="sources"><span class="r-lbl">المصادر:</span> `
+      + d.sources.map(s => `${esc(s.what)} — ${esc(s.from)}`).join("  ·  ") + `</div>`;
+  }
+  info += `</div>`;
+
+  const back = netHistory.length > 1 ? `<button class="net-back">◀ رجوع</button>` : "";
+  const legend = `<div class="net-legend">`
+    + `<span><i style="background:#1f7a52"></i>ثقة فأعلى</span>`
+    + `<span><i style="background:#a87d27"></i>صدوق/حسن</span>`
+    + `<span><i style="background:#a5381f"></i>ضعيف فمَن دونه</span>`
+    + `<span><i style="background:#8a7f6c"></i>غير ذلك</span>`
+    + `<span><i style="background:#b9ad97"></i>غير معروف في القاعدة</span></div>`;
+  const hint = `<div class="note">انقر أيَّ راوٍ للانتقال إليه؛ وسُمكُ الخطّ على قدر عدد المرويّات بينهما. `
+    + `الشيوخُ أعلى (نحو النبيّ ﷺ) والتلاميذُ أسفل.</div>`;
+
+  results.innerHTML = `<div class="net-top">${back}${legend}</div>`
+    + `<div class="net-wrap">${svg}</div>` + hint + info;
+}
+
 // Isnad (الإسناد): the chain's bottom-line verdict, narrator by narrator, plus اتصال.
 const TONE = {sahih:"g-sahih", hasan:"g-hasan", daif:"g-daif", other:"g-other"};
 function isnadVia(v){
@@ -607,8 +739,8 @@ const METHODOLOGY = [
     pros:"يكشف طرقَ الحديث وشواهدَه عبر الدواوين دفعةً واحدة.",
     cons:"المطابقةُ تقريبيّة؛ قد تفوته روايةٌ بعيدةُ اللفظ، أو تَجمع ما تشابه لفظًا واختلف قصّةً؛ وتمييزُ الصحابيّ يعتمد على معرفته."},
   {h:"شبكة الرواة (علم الرجال)", src:"أسانيدُ الأحاديث نفسها في الكتب.",
-    how:"نستخرج من كلّ إسنادٍ علاقةَ (تلميذ ← شيخ)، فتتكوّن شبكةٌ موزونةٌ بعدد المرّات؛ ومنها نعرض شيوخَ الراوي وتلاميذه. ونعالج المشترك (تعدّدَ من يحمل الاسم، كسفيان) بقرائن.",
-    pros:"مبنيّةٌ من النصّ الفعليّ لا من قائمةٍ جاهزة؛ تكشف الصِّلات كما وقعت في الروايات.",
+    how:"نستخرج من كلّ إسنادٍ علاقةَ (تلميذ ← شيخ)، فتتكوّن شبكةٌ موزونةٌ بعدد المرّات؛ ومنها نعرض شيوخَ الراوي وتلاميذه — في لسان «راوٍ» قائمةً، وفي لسان «الشبكة» رسمًا بيانيًّا تفاعليًّا تتنقّل فيه بالنقر بين الرواة (الشيوخ أعلى نحو النبيّ ﷺ والتلاميذ أسفل)، مع تلوين كلّ راوٍ بدرجته وسُمكِ الخطّ على قدر عدد المرويّات. ونعالج المشترك (تعدّدَ من يحمل الاسم، كسفيان) بقرائن.",
+    pros:"مبنيّةٌ من النصّ الفعليّ لا من قائمةٍ جاهزة؛ تكشف الصِّلات كما وقعت في الروايات، وتُتيح تتبّعَ السلسلة راويًا راويًا.",
     cons:"تطبيعُ الأسماء صعبٌ (كنًى وألقابٌ وأنساب)؛ قد يلتبس متشابهان، أو ينقطع رابطٌ بسبب اختلاف صيغة الاسم."},
   {h:"درجات الرواة (الجرح والتعديل)", src:"بذرةٌ منتقاةٌ موثّقةٌ من «تقريب التهذيب» (والصحابةُ عدولٌ بالإجماع)، وتتوسّع بقاعدة رجالٍ كاملةٍ عبر RIJAL_PATH.",
     how:"نصنّف حكمَ كلّ راوٍ إلى مرتبةٍ بحسب مراتب الجرح والتعديل (ثقة، صدوق، لين، مجهول، ضعيف، متروك...)، ونأخذ بالطرف الأضعف عند الحكم.",
@@ -688,15 +820,14 @@ const ARCHITECTURE = [
   {h:"٦) المحرّك اللغوي (اختياري)", p:[
     "مفتاحٌ بثلاثة أوضاع: «بدون ذكاء اصطناعي» (استخراجيّ، الأأمن)، أو «محلّي» (Ollama)، أو «سحابيّ» (أيّ مزوّد). وهو مُلزَمٌ بالاستشهاد من المصادر المسترجَعة فقط وعدمِ الاختلاق."]},
   {h:"٧) الواجهة", p:[
-    "خادمُ FastAPI (بحث، سؤال، تخريج، تحقيق إسناد، راوٍ، دفتر) ونافذةٌ مكتبية بالعربية مع هذه الألسنة."]},
+    "خادمُ FastAPI (بحث، سؤال، تخريج، تحقيق إسناد، راوٍ، شبكةٌ بيانيّة، دفتر) ونافذةٌ مكتبية بالعربية مع هذه الألسنة."]},
   {h:"المبدأ الحاكم", p:[
     "يَسترجع ويُوثّق ولا يَختلق؛ ويُميَّز دائمًا المنقولُ (نصُّ المصدر ونسبتُه = موثوق) عن التحليليّ (الفصلُ والمطابقةُ والحكم = اجتهاديٌّ يُراجَع) — كما تُفصّله صفحة «المنهجية»."]},
   {h:"أين يمكن أن يتحسّن", p:[
     "• تحليلٌ أدقّ لفصل الإسناد/المتن واستخراج الحكم (قواعد أكثر أو نموذج).",
     "• تخصيصُ نموذج المتّجهات على نصوص الحديث → دلالةٌ أدقّ في المجال.",
-    "• رجالٌ أوسع (تهذيب الكمال كاملًا، الجرح والتعديل) و«رأيٌ ثانٍ» عند اختلاف ابن حجر والذهبي.",
-    "• مطابقةُ الأسماء بالترتيب لا بالمجموعة فقط (تمييز «يزيد بن جابر» عن «جابر بن يزيد»).",
-    "• النظرُ في العلّة والشذوذ، لا الرجال والاتصال فحسب.",
+    "• رجالٌ أوسع (تهذيب الكمال كاملًا، والجرح والتعديل) لتوسيع التغطية.",
+    "• النظرُ في العلّة والشذوذ بنيويًّا، لا الرجال والاتصال فحسب.",
     "• مُعيدُ ترتيبٍ (reranker) بعد الاسترجاع، والانتقالُ إلى Postgres + pgvector للتوسّع."]},
   {h:"الحدود وإخلاءُ المسؤولية", p:[
     "• أداةُ دراسةٍ لا فتوى؛ وحكمُ الإسناد على ظاهر الرجال والاتصال، لا تصحيحٌ تامّ (يحتاج العلّة والشذوذ).",
@@ -718,6 +849,13 @@ results.addEventListener("click", e => {
   const isnad = e.target.nextElementSibling;
   const open = isnad.classList.toggle("show");
   e.target.textContent = open ? "إخفاء الإسناد ▴" : "عرض الإسناد ▾";
+});
+
+// Network (الشبكة): click a node to re-centre on that narrator, «رجوع» to step back.
+results.addEventListener("click", e => {
+  if(e.target.closest(".net-back")){ netBack(); return; }
+  const node = e.target.closest("[data-nav]");
+  if(node) navigateNet(node.getAttribute("data-nav"));
 });
 
 // Save (★) / edit a note / delete — all the notebook actions (event delegation, async).
