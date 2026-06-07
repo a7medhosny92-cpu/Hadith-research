@@ -109,8 +109,8 @@ class RijalIndex:
 
     def __init__(self, entries: Iterable[dict] | None = None) -> None:
         self._entries: list[RijalEntry] = []
-        self._forms: list[list[set[str]]] = []  # token set per name form (canonical + aliases)
-        self._form_seqs: list[list[list[str]]] = []  # the same forms, tokens kept in order
+        self._form_seqs: list[list[list[str]]] = []   # name + alias token-seqs (full matching)
+        self._kunya_seqs: list[list[str] | None] = []  # the kunya (reverse-containment only)
         if entries:
             self.add(entries)
 
@@ -129,13 +129,14 @@ class RijalIndex:
                 source=raw.get("source"),
                 opinions=raw.get("opinions"),
             )
-            # Match on the name, its aliases, AND the kunya — so a chain that cites a man
-            # by his kunya (أبو هريرة) links to his entry even without an explicit alias.
-            forms = (entry.name, *entry.aliases, *( (entry.kunya,) if entry.kunya else () ))
-            seqs = [s for s in (_clean_seq(f) for f in forms) if s]
+            # The name + its aliases are matched in full (containment either way). The kunya
+            # is kept apart: a chain may cite a man BY his kunya (أبو هريرة), but a common
+            # kunya («أبو بكر») must NOT match a fuller name that merely contains it.
+            seqs = [s for s in (_clean_seq(f) for f in (entry.name, *entry.aliases)) if s]
+            kunya = _clean_seq(entry.kunya) if entry.kunya else None
             self._entries.append(entry)
-            self._forms.append([set(s) for s in seqs])
             self._form_seqs.append(seqs)
+            self._kunya_seqs.append(kunya or None)
             n += 1
         return n
 
@@ -145,11 +146,13 @@ class RijalIndex:
     def lookup(self, name: str, *, min_overlap: float = 0.6) -> RijalMatch | None:
         """Best narrator match, or ``None``.
 
-        A name *form* fully contained in the query (e.g. query «عمر بن الخطاب علي»
-        contains «عمر بن الخطاب») is a confident hit; the most specific such form
-        wins, which keeps a man distinct from a longer namesake (his son «عبد الله
-        بن عمر»). Only when no form is contained do we fall back to fuzzy overlap.
-        Equally-specific rivals (سفيان ↦ ابن عيينة/الثوري) are flagged ambiguous.
+        A match must be a **containment**: either the entry's name is fully inside the query
+        (query «عمر بن الخطاب علي» ⊇ «عمر بن الخطاب») — the most specific such name wins, so a
+        man stays distinct from his longer-named son «عبد الله بن عمر» — or the cited name is a
+        partial of the entry («الزهري» ⊆ «محمد بن مسلم … الزهري»). Names that merely *share* a
+        common token (محمد بن عبد الله بن نمير vs عبد الله بن عمر) are NOT a match — that
+        coincidence is what made reliable men read as weak namesakes. Equally-good rivals
+        (سفيان ↦ ابن عيينة/الثوري) are flagged ambiguous rather than guessed.
         """
         query_seq = _clean_seq(name)
         query = set(query_seq)
@@ -158,11 +161,11 @@ class RijalIndex:
         if len(query) == 1 and query_seq[0] in _NON_IDENTIFYING:
             return None     # a bare kinship/connector particle — identifies no one
 
-        contained: list[tuple[int, RijalEntry]] = []        # (specificity, entry)
-        partial: list[tuple[float, int, RijalEntry]] = []   # (overlap, form_len, entry)
-        for entry, seqs in zip(self._entries, self._form_seqs):
+        contained: list[tuple[int, RijalEntry]] = []        # (specificity, entry) — name ⊆ query
+        partial: list[tuple[int, int, RijalEntry]] = []     # (cover, form_len, entry) — query ⊆ name
+        for entry, seqs, kunya in zip(self._entries, self._form_seqs, self._kunya_seqs):
             specificity = 0
-            best: tuple[float, int] | None = None   # (overlap, form_len): max overlap, then short
+            best: tuple[int, int] | None = None   # (cover, form_len) for query ⊆ form
             for seq in seqs:
                 form = set(seq)
                 # a bare single-token form (an ism like «عمر») can't confidently identify
@@ -171,43 +174,49 @@ class RijalIndex:
                 if len(form) == 1 and len(query) > 1:
                     continue
                 shared = query & form
-                if not shared:
+                # the shared tokens must be in the same order in both, else it's a different
+                # man whose name is the reverse («يزيد بن جابر» vs «جابر بن يزيد»)
+                if not shared or not _order_ok(query_seq, seq, shared):
                     continue
-                # the shared tokens must be in the same order in both, else it's a
-                # different man whose name is the reverse («يزيد بن جابر» vs «جابر بن يزيد»)
-                if not _order_ok(query_seq, seq, shared):
-                    continue
-                if len(shared) == len(form):  # form ⊆ query
+                if len(shared) == len(form):           # form ⊆ query → the entry's name is in the query
                     specificity = max(specificity, len(form))
-                overlap = round(len(shared) / min(len(query), len(form)), 3)
-                # keep the best form for this entry: highest overlap, then the *shortest* form
-                # (so a bare token prefers the man whose ism it is, not one where it is a deep
-                # ancestor — «معمر» ↦ «معمر بن راشد», not «أسباط بن … بن معمر …»).
-                if best is None or overlap > best[0] or (overlap == best[0] and len(form) < best[1]):
-                    best = (overlap, len(form))
+                elif len(shared) == len(query):        # query ⊆ form → cited name is a partial of this entry
+                    cand = (len(shared), len(form))
+                    if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]):
+                        best = cand
+                # else: neither contains the other → coincidental shared token(s), not a match
+            # the kunya identifies a man only when the chain cites him BY it (query ⊆ kunya);
+            # a common kunya as a fragment of a fuller name must not match (أبو بكر بن أبي شيبة
+            # is not «الزهري» merely because الزهري's kunya is أبو بكر).
+            if kunya:
+                kf = set(kunya)
+                shared = query & kf
+                if shared and len(shared) == len(query) and _order_ok(query_seq, kunya, shared):
+                    cand = (len(shared), len(kf))
+                    if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]):
+                        best = cand
             if specificity:
                 contained.append((specificity, entry))
-            elif best and best[0] >= min_overlap:
+            elif best:
                 partial.append((best[0], best[1], entry))
 
         if contained:
             contained.sort(key=lambda pair: -pair[0])
             top = contained[0][0]
-            best = contained[0][1]
-            alternatives = [e.name for s, e in contained if s == top and e.name != best.name]
-            return RijalMatch(best, 1.0, bool(alternatives), alternatives[:3])
+            best_e = contained[0][1]
+            alternatives = [e.name for s, e in contained if s == top and e.name != best_e.name]
+            return RijalMatch(best_e, 1.0, bool(alternatives), alternatives[:3])
 
         if partial:
-            partial.sort(key=lambda t: (-t[0], t[1]))   # overlap desc, then shortest form first
-            top_ov, top_len, best = partial[0]
-            # ties are only among equally-good AND equally-short forms (real homonyms like
-            # سعيد ↦ ابن المسيب/ابن جبير); a longer name that merely contains the token is not
-            # an alternative — so it can't act as a magnet.
+            partial.sort(key=lambda t: (-t[0], t[1]))   # cover most of the query, then shortest name
+            top_cov, top_len, best_e = partial[0]
+            # ties are only among names equally close to the query (same coverage and length) —
+            # real homonyms like سعيد ↦ ابن المسيب/ابن جبير, flagged for the reader to resolve.
             alternatives = [
-                e.name for ov, ln, e in partial
-                if abs(ov - top_ov) < 1e-6 and ln == top_len and e.name != best.name
+                e.name for cov, ln, e in partial
+                if cov == top_cov and ln == top_len and e.name != best_e.name
             ]
-            return RijalMatch(best, top_ov, bool(alternatives), alternatives[:3])
+            return RijalMatch(best_e, 1.0, bool(alternatives), alternatives[:3])
 
         return None
 

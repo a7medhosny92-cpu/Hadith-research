@@ -99,10 +99,11 @@ def test_ruling_weakest_matruk_is_very_weak():
     assert r["tone"] == "daif" and "جدًا" in r["grade"]
 
 
-def test_ruling_break_overrides_strong_rijal():
-    # rijal all ثقات, but a chain link is unseen → ضعيف للانقطاع
+def test_ruling_network_gap_is_a_caution_not_a_downgrade():
+    # rijal all ثقات but a link is unseen in our graph: that is weak coverage evidence
+    # (often just a name-form difference), so it must NOT flip the sound verdict — only caution.
     r = overall_ruling(_analysis(9), {"total": 5, "seen": 3})
-    assert r["tone"] == "daif" and "انقطاع" in r["reason"]
+    assert r["tone"] == "sahih" and "يُراجَع" in r["reason"]
 
 
 def test_ruling_unknown_narrators_hold_the_verdict():
