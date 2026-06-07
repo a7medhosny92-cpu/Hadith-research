@@ -1194,6 +1194,7 @@ function renderTech(){
 
 // Audit (التدقيق): the prebuilt list of chains whose narrator grading is likely wrong —
 // for manual review. Each case opens its isnad on click. Built by scripts.audit_isnad.
+let auditData = null;   // last /audit report (for the «نسخ القائمة» copy button)
 async function renderAudit(){
   results.innerHTML = `<div class="state">… جارٍ تحميل تقرير التدقيق</div>`;
   let d;
@@ -1206,8 +1207,10 @@ async function renderAudit(){
       + `<div class="note">يفحص كلَّ الأسانيد ويجمع الحالات المشتبهة لمراجعتها يدويًّا (ويتجدّد تلقائيًّا مع update.bat).</div>`;
     return;
   }
-  let html = `<div class="note">تقريرُ التدقيق — فُحص <b>${d.scanned}</b> إسنادًا · قاعدةُ رجالٍ ${d.rijal_entries} · ${esc(d.generated)}</div>`
-    + `<div class="note">حالاتٌ يُنصح بمراجعتها يدويًّا (قرائنُ اشتباهٍ لا أحكام). اضغط أيّ حالةٍ لفتح إسنادها وحكمِه.</div>`;
+  auditData = d;
+  let html = `<div class="note">تقريرُ التدقيق — فُحص <b>${d.scanned}</b> إسنادًا · قاعدةُ رجالٍ ${d.rijal_entries} · ${esc(d.generated)} `
+    + `<button class="tool audit-copy">⧉ نسخ القائمة</button></div>`
+    + `<div class="note">حالاتٌ يُنصح بمراجعتها يدويًّا (قرائنُ اشتباهٍ لا أحكام). اضغط أيّ حالةٍ لفتح إسنادها وحكمِه؛ والقائمةُ الكاملةُ في الملف data/audit.json.</div>`;
   ["P", "W", "S", "A"].forEach(code => {
     const total = (d.counts || {})[code] || 0;
     if(!total) return;
@@ -1222,6 +1225,38 @@ async function renderAudit(){
   });
   results.innerHTML = html;
 }
+
+// Build the audit report as plain text (for copying).
+function auditText(d){
+  let t = `تقرير التدقيق — ${d.scanned} إسناد · ${d.rijal_entries} رجال · ${d.generated}\n`;
+  ["P", "W", "S", "A"].forEach(code => {
+    const total = (d.counts || {})[code] || 0;
+    if(!total) return;
+    const cases = (d.cases || {})[code] || [];
+    t += `\n## ${(d.labels || {})[code] || code} (${total})\n`;
+    cases.forEach(c => {
+      const cite = [c.collection, (c.number != null ? "رقم " + c.number : null)].filter(Boolean).join(" · ");
+      t += `- [${cite}] ${c.detail}\n`;
+    });
+    if(cases.length < total) t += `… و${total - cases.length} حالة أخرى (الكاملة في data/audit.json)\n`;
+  });
+  return t;
+}
+
+// «نسخ القائمة» — copy the whole audit report to the clipboard.
+results.addEventListener("click", async e => {
+  const btn = e.target.closest(".audit-copy");
+  if(!btn || !auditData) return;
+  const text = auditText(auditData);
+  try { await navigator.clipboard.writeText(text); }
+  catch(_){
+    const ta = document.createElement("textarea"); ta.value = text;
+    ta.style.position = "fixed"; ta.style.opacity = "0"; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); document.body.removeChild(ta);
+  }
+  const o = btn.textContent; btn.textContent = "✓ نُسخت"; btn.classList.add("done");
+  setTimeout(() => { btn.textContent = o; btn.classList.remove("done"); }, 1200);
+});
 
 // Toggle the isnad, and on first open lazily load its chain verdict («الحكم على الإسناد»).
 results.addEventListener("click", async e => {
