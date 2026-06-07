@@ -154,11 +154,11 @@ class RijalIndex:
         if len(query) == 1 and query_seq[0] in _NON_IDENTIFYING:
             return None     # a bare kinship/connector particle — identifies no one
 
-        contained: list[tuple[int, RijalEntry]] = []   # (specificity, entry)
-        partial: list[tuple[float, RijalEntry]] = []    # (overlap, entry)
+        contained: list[tuple[int, RijalEntry]] = []        # (specificity, entry)
+        partial: list[tuple[float, int, RijalEntry]] = []   # (overlap, form_len, entry)
         for entry, seqs in zip(self._entries, self._form_seqs):
             specificity = 0
-            best_overlap = 0.0
+            best: tuple[float, int] | None = None   # (overlap, form_len): max overlap, then short
             for seq in seqs:
                 form = set(seq)
                 # a bare single-token form (an ism like «عمر») can't confidently identify
@@ -175,11 +175,16 @@ class RijalIndex:
                     continue
                 if len(shared) == len(form):  # form ⊆ query
                     specificity = max(specificity, len(form))
-                best_overlap = max(best_overlap, len(shared) / min(len(query), len(form)))
+                overlap = round(len(shared) / min(len(query), len(form)), 3)
+                # keep the best form for this entry: highest overlap, then the *shortest* form
+                # (so a bare token prefers the man whose ism it is, not one where it is a deep
+                # ancestor — «معمر» ↦ «معمر بن راشد», not «أسباط بن … بن معمر …»).
+                if best is None or overlap > best[0] or (overlap == best[0] and len(form) < best[1]):
+                    best = (overlap, len(form))
             if specificity:
                 contained.append((specificity, entry))
-            elif best_overlap >= min_overlap:
-                partial.append((round(best_overlap, 3), entry))
+            elif best and best[0] >= min_overlap:
+                partial.append((best[0], best[1], entry))
 
         if contained:
             contained.sort(key=lambda pair: -pair[0])
@@ -189,12 +194,16 @@ class RijalIndex:
             return RijalMatch(best, 1.0, bool(alternatives), alternatives[:3])
 
         if partial:
-            partial.sort(key=lambda pair: -pair[0])
-            top, best = partial[0]
+            partial.sort(key=lambda t: (-t[0], t[1]))   # overlap desc, then shortest form first
+            top_ov, top_len, best = partial[0]
+            # ties are only among equally-good AND equally-short forms (real homonyms like
+            # سعيد ↦ ابن المسيب/ابن جبير); a longer name that merely contains the token is not
+            # an alternative — so it can't act as a magnet.
             alternatives = [
-                e.name for score, e in partial if top - score < 1e-6 and e.name != best.name
+                e.name for ov, ln, e in partial
+                if abs(ov - top_ov) < 1e-6 and ln == top_len and e.name != best.name
             ]
-            return RijalMatch(best, top, bool(alternatives), alternatives[:3])
+            return RijalMatch(best, top_ov, bool(alternatives), alternatives[:3])
 
         return None
 
