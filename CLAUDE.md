@@ -108,12 +108,23 @@ correct). NB: parse + index are FULL rebuilds, so this propagates on the user's 
 **328** removable same-man duplicates · **1245** confirmed-homonym keys · **350** undecidable for
 want of death-year/kunya (a richer source would settle them).
 
-**Active next step — تهذيب الكمال (ROADMAP #8):** anchor on al-Mizzī (the source the others derive
-from) for full names + **شيوخ/تلاميذ** (authoritative narrator network → resolves the 1245 genuine
-homonyms at verdict time) + **multi-critic verdicts**. Plan = "study first": user samples real
-tarājim with `sample_source 3722` and sends them; then design the prose extractor against real text.
-Prudent same-man merge rule: confirm by death-year ±~20 OR identical kunya; nisba/generation conflict
-blocks the merge.
+**تهذيب الكمال extractor — BUILT (`app/parsing/tahdhib_extract.py`, this branch):** parses the real
+3722 → **~6,870 tarājim, books 92% · شيوخ 94% · تلاميذ 93% · verdicts 57%**. Key lessons (see
+docs/TAHDHIB.md): the book is heavily vocalised → every marker regex is diacritic-tolerant
+(`flexible_word`) and grade words are matched diacritic-folded; minor narrators use the abbreviated
+**«عَن:» / «وعَنه:»** (not «رَوَى عَن:») — colon required so chain «عَنْ» isn't mistaken; no
+`indexes.numbers` so the محقق's ~200-page intro is skipped via a dense-rumūz-run heuristic
+(`_muqaddima_skip`). Weak spots: ~14% names absorb bio, `death_year` ~19% (misses vocalised
+spelled-out years), noisy verdicts. NOT wired into the pipeline yet (parse skips RIJAL_PROSE_BOOKS).
+**Next:** integrate the شيوخ/تلاميذ network into `build_graph` (identify a narrator from his chain
+neighbours → resolves the 1245 «مشترك» homonyms) + feed names/verdicts as a rich rijal source. Prudent
+same-man merge rule: death-year ±~20 OR identical kunya; nisba/generation conflict blocks the merge.
+
+**⚠️ Per-volume page numbering (app-wide, user-flagged 2026-06-08):** many turath books are multi-
+volume and **reset `page` to 1 each volume** (تهذيب has 35; al-Mustadrak's printed «204» occurs 35×),
+so a citation needs **`vol` + `page`**, never `page` alone. Parsed records already carry `volume`/`page`
+— the bug is the UI showing «ص 229» without «ج». FIX: every citation (search cards, القرآن copy text,
+saved notebook chips, takhrij, isnad source) must render «ج {volume} · ص {page}» when volume exists.
 
 **Waiting on the user:** run `update.bat` **to completion** (it rebuilds rijal AND regenerates the
 audit — the last run stalled mid-flight, leaving stale numbers) → send the new W/S/A from the
