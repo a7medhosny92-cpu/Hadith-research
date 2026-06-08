@@ -80,6 +80,10 @@ _WS = re.compile(r"\s+")
 # Folded tokens that identify no one on their own — a name made only of these («عبد الله»)
 # is a truncation artifact, not a usable tarjama.
 _GENERIC_NAME = {normalize_for_search(w) for w in ("عبد", "عبيد", "الله")}
+# The gravest verdicts (كذّاب/وضّاع). A *bare* ism+father carrying one — no nisba, kunya, or
+# death year — is almost always a truncated mis-parse that would contain-match and condemn every
+# fuller namesake cited in a chain («يونس بن محمد» ↦ كذاب, though the real one is the ثقة المؤدّب).
+_GRAVE = {normalize_for_search(w) for w in ("كذاب", "وضاع", "دجال", "يضع")}
 
 # Laqab / shuhra cues: «المعروف بـ…», «يقال له…», «لقبه…» introduce another name the man
 # is known by — captured as an alias so a chain that cites him by it links to one person.
@@ -242,6 +246,19 @@ def _entry_to_record(number: int | None, body: str, source: str) -> dict | None:
         return None
     if {normalize_for_search(t) for t in name_toks} - {"بن", "ابن", ""} <= _GENERIC_NAME:
         return None
+    folded = [t for t in (normalize_for_search(x) for x in name_toks) if t and t not in ("بن", "ابن")]
+    # A name reduced to one identifying token («خالد») is a truncation, not a tarjama: as a bare
+    # ism it exact-matches — and mis-grades — every «خالد …» downstream (here «خالد» ↦ صحابي).
+    if len(folded) < 2:
+        return None
+    year = _death_year(body)
+    # A bare ism+father (no nisba/kunya/death) given the gravest verdict is a mis-parse: «يونس بن
+    # محمد» (really the ثقة المؤدّب), «عبد الرحمن بن محمد» (vs the صدوق المحاربي beside it). Kept, it
+    # contain-matches and condemns every fuller namesake a chain cites.
+    if (year is None and not _KUNYA.search(name) and len(folded) <= 3
+            and not any(t.startswith("ال") and t.endswith("ي") and len(t) >= 4 for t in folded)
+            and any(g in normalize_for_search(grade or "") for g in _GRAVE)):
+        return None
 
     record: dict = {"name": name, "grade": grade or "غير محدد"}
     record["source"] = f"{source} (رقم {number})" if number is not None else source
@@ -251,7 +268,6 @@ def _entry_to_record(number: int | None, body: str, source: str) -> dict | None:
     aliases = _aliases(body)      # laqab/shuhra the man is also known by
     if aliases:
         record["aliases"] = aliases
-    year = _death_year(body)
     if year:
         record["death_year"] = year
     return record
