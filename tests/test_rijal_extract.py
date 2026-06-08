@@ -166,6 +166,26 @@ def test_kashif_style_entries_extract_clean_names_and_grades():
     assert classify(next(r for r in recs if "نوح" in r["name"])["grade"])[0] == "كذاب"
 
 
+def test_truncated_and_bare_grave_entries_are_dropped():
+    # Garbage that, kept, condemns sound chains: a single-token «خالد» graded صحابي (mis-grades
+    # every خالد الحذاء downstream), and a *bare* ism+father given the gravest verdict — «يونس بن
+    # محمد» ↦ كذاب, though the real one is the ثقة المؤدّب right beside it. A name with a nisba is
+    # kept even when graded كذاب (it identifies a man); a non-grave bare grade is kept too.
+    page = "\n".join([
+        "١- يونس ابن محمد كذاب من العاشرة ق",                       # bare + كذاب → mis-parse, drop
+        "٢- يونس ابن محمد المؤدب البغدادي ثقة ثبت من التاسعة ع",     # the real man (nisba) → keep
+        "٣- خالد صحابي ع",                                          # single token → drop
+        "٤- عمرو ابن دينار المكي كذاب من الثالثة س",                 # has nisba → keep despite كذاب
+        "٥- معمر ابن راشد ضعيف من السابعة ع",                       # bare but not grave → keep
+    ])
+    names = [r["name"] for r in iter_narrators([{"pg": 1, "text": page}])]
+    assert "يونس ابن محمد" not in names                       # the bare كذاب mis-parse is gone
+    assert any(n.startswith("يونس ابن محمد المؤدب") for n in names)  # the real ثقة survives
+    assert "خالد" not in names                                # single-token truncation dropped
+    assert any(n.startswith("عمرو ابن دينار") for n in names)       # a *named* man (nisba) is kept
+    assert any(n.startswith("معمر ابن راشد") for n in names)        # a non-grave bare name is kept
+
+
 def test_dedupe_drops_exact_seed_duplicates_but_keeps_namesakes():
     records = [
         {"name": "عبد الله بن عمر", "grade": "صحابي"},            # exact seed alias → drop
