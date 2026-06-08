@@ -116,7 +116,7 @@ docs/TAHDHIB.md): the book is heavily vocalised → every marker regex is diacri
 **«عَن:» / «وعَنه:»** (not «رَوَى عَن:») — colon required so chain «عَنْ» isn't mistaken; no
 `indexes.numbers` so the محقق's ~200-page intro is skipped via a dense-rumūz-run heuristic
 (`_muqaddima_skip`). Weak spots: ~14% names absorb bio, `death_year` ~19% (misses vocalised
-spelled-out years), noisy verdicts. **Wired into `build_graph` (this branch):** `app/rijal/tahdhib.py`
+spelled-out years), noisy verdicts. **Wired into `build_graph` (PR #104 → main):** `app/rijal/tahdhib.py`
 turns each tarjama into an association (رجال canonical name → tokens of his شيوخ+تلاميذ, only when he
 resolves unambiguously); build_graph merges these into pass-1 `profiles` when `3722.json` is on disk,
 so `canon._pick` weighs al-Mizzī's authoritative company to resolve «مشترك» names — gated, no new

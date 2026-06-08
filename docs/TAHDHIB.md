@@ -95,6 +95,15 @@ Recorded so the reasoning survives a context reset (and for anyone extending it)
 6. **Validate on known men + aggregate coverage.** Spot-checks on عثمان بن أبي شيبة / يونس بن محمد /
    الثوري (right rumūz, right شيوخ/تلاميذ) plus corpus-wide coverage %s caught each regression (e.g. an
    over-eager name cut, or `_story_start`-style over-reach) before it was accepted.
+7. **Wire it in where the lever already is — don't invent a new mechanism.** The graph *already*
+   disambiguates «مشترك» by company (`canon._pick` weighs each candidate's recorded associates against
+   the chain). So we did NOT add a parallel path: we just **enrich the existing `profiles`** with
+   al-Mizzī's authoritative شيوخ/تلاميذ. *Why this shape:* (a) **keyed by رجال canonical name**, added
+   only when the man resolves *unambiguously* in the authority — pin company on the wrong man and you'd
+   make the graph *worse*, the one thing the audit forbids; (b) **gated on `3722.json` and parsed
+   inline** in `build_graph` — no new pipeline step, and an absent book means byte-identical behaviour
+   (zero regression risk); (c) it strengthens `_pick`'s *relative* comparison, and ties still yield no
+   decision, so authoritative-but-large companies can only help, never force a wrong merge.
 
 ## Wired into the graph (homonym disambiguation) — DONE
 `app/rijal/tahdhib.py` turns each tarjama into an **association**: the man's رجال canonical name →
