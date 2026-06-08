@@ -95,8 +95,29 @@ Recorded so the reasoning survives a context reset (and for anyone extending it)
 6. **Validate on known men + aggregate coverage.** Spot-checks on عثمان بن أبي شيبة / يونس بن محمد /
    الثوري (right rumūz, right شيوخ/تلاميذ) plus corpus-wide coverage %s caught each regression (e.g. an
    over-eager name cut, or `_story_start`-style over-reach) before it was accepted.
+7. **Wire it in where the lever already is — don't invent a new mechanism.** The graph *already*
+   disambiguates «مشترك» by company (`canon._pick` weighs each candidate's recorded associates against
+   the chain). So we did NOT add a parallel path: we just **enrich the existing `profiles`** with
+   al-Mizzī's authoritative شيوخ/تلاميذ. *Why this shape:* (a) **keyed by رجال canonical name**, added
+   only when the man resolves *unambiguously* in the authority — pin company on the wrong man and you'd
+   make the graph *worse*, the one thing the audit forbids; (b) **gated on `3722.json` and parsed
+   inline** in `build_graph` — no new pipeline step, and an absent book means byte-identical behaviour
+   (zero regression risk); (c) it strengthens `_pick`'s *relative* comparison, and ties still yield no
+   decision, so authoritative-but-large companies can only help, never force a wrong merge.
 
-## Next
-Wire it in: (a) integrate the شيوخ/تلاميذ network into `build_graph` so a narrator is identified from
-his chain neighbours → resolves the «مشترك» (A) homonyms at verdict time; (b) feed full names + multi-
-critic verdicts as a rich rijal source. NOT yet imported by the pipeline (parse skips RIJAL_PROSE_BOOKS).
+## Wired into the graph (homonym disambiguation) — DONE
+`app/rijal/tahdhib.py` turns each tarjama into an **association**: the man's رجال canonical name →
+the cleaned tokens of his شيوخ+تلاميذ (added only when he's resolved *unambiguously* in the authority).
+`scripts/build_graph.py` merges these into the pass-1 `profiles` (when `3722.json` is on disk), so the
+canonicaliser's `_pick` weighs al-Mizzī's **authoritative** company — the surest signal — when
+resolving a «مشترك» bare name from its chain. No file/step added (parsed inline, gated on the book);
+absent book ⇒ unchanged behaviour. Activates on the user's next `update.bat` (build_graph step). The
+true effect on the audit's A/«مشترك» count is measured after that rebuild.
+
+## Still to do
+- (b) feed full names + **multi-critic verdicts** as a rich rijal source (the «double-opinion» page);
+- also add تهذيب edges to the graph **adjacency** (not just disambiguation) so `/narrator` shows the
+  authoritative شيوخ/تلاميذ;
+- polish: `death_year` (vocalised spelled-out years), تلاميذ truncation on the longest entries,
+  the ~14% of names that still absorb bio.
+Not imported by the hadith parse (parse skips RIJAL_PROSE_BOOKS); only `build_graph` reads the book.

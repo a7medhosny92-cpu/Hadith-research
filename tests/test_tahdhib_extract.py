@@ -44,3 +44,37 @@ def test_muqaddima_skip_lands_on_the_dense_rumuz_run():
     assert _muqaddima_skip([True] * 20) == 0                      # all narrators → no skip
     assert 25 <= _muqaddima_skip([False] * 30 + [True] * 20) <= 30   # 30 intro items → skip them
     assert _muqaddima_skip([False] * 5) == 0                      # too short to decide → start at 0
+
+
+def test_tahdhib_company_disambiguates_a_homonym():
+    # the payoff: al-Mizzī's شيوخ/تلاميذ resolve an ambiguous bare name from its chain company.
+    from app.rijal import RijalIndex
+    from app.rijal.canon import Canonicalizer
+    from app.rijal.index import _clean_tokens
+    from app.rijal.tahdhib import tahdhib_associations
+
+    rij = RijalIndex([                                            # two «حماد» homonyms…
+        {"name": "حماد بن زيد", "grade": "ثقة"},
+        {"name": "حماد بن سلمة", "grade": "ثقة"},
+        {"name": "أيوب السختياني", "grade": "ثقة"},
+        {"name": "ثابت البناني", "grade": "ثقة"},
+    ])
+    records = [                                                   # …each with a distinct شيخ in تهذيب
+        {"name": "حماد بن زيد", "shuyukh": ["أيوب السختياني"], "talamidh": []},
+        {"name": "حماد بن سلمة", "shuyukh": ["ثابت البناني"], "talamidh": []},
+    ]
+    assoc = tahdhib_associations(records, rij)
+    assert "حماد بن زيد" in assoc and "حماد بن سلمة" in assoc     # keyed by رجال canonical name
+    canon = Canonicalizer(rij, associations=assoc)
+    # «حماد عن أيوب» is ابن زيد; «حماد عن ثابت» is ابن سلمة — decided by the تهذيب company alone.
+    assert canon.canonical("حماد", context=frozenset(_clean_tokens("أيوب السختياني"))) == "حماد بن زيد"
+    assert canon.canonical("حماد", context=frozenset(_clean_tokens("ثابت البناني"))) == "حماد بن سلمة"
+
+
+def test_tahdhib_associations_skip_an_ambiguous_or_unknown_narrator():
+    from app.rijal import RijalIndex
+    from app.rijal.tahdhib import tahdhib_associations
+
+    rij = RijalIndex([{"name": "مالك بن أنس", "grade": "ثقة"}])
+    # «فلان» is unknown to the authority → no association keyed onto a name we can't pin.
+    assert tahdhib_associations([{"name": "فلان المجهول", "shuyukh": ["نافع"]}], rij) == {}
