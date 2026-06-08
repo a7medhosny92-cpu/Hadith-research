@@ -23,9 +23,15 @@ import re
 from pathlib import Path
 from typing import Iterator
 
-from app.parsing.html_clean import arabic_digits_to_int, clean_block
+from app.parsing.html_clean import arabic_digits_to_int, clean_block, flexible_word
 from app.parsing.normalize import strip_diacritics
 from app.parsing.rijal_extract import _BOUNDARY, _death_year, _first_entry_page
+
+
+def _alt(*words: str) -> str:
+    """Diacritic-tolerant regex alternation of whole words (the source is heavily vocalised:
+    «رَوَى عَن» must match the bare «روى عن»)."""
+    return "|".join(flexible_word(w) for w in words)
 
 # The Six-Books rumūz (and their sub-works) that head a real tarjama; «تمييز» marks a man listed
 # only to disambiguate (NOT one of the Six Books' narrators).
@@ -36,19 +42,30 @@ _BOOKS = set("خ م د ت س ق ع ٤ ر ص".split()) | {
 _FOOTNOTE = re.compile(r"_{4,}")                       # «_________» — the footnote separator
 _REF = re.compile(r"\s*\([٠-٩0-9]+\)")                 # inline footnote refs «(٢)»
 _PAREN = re.compile(r"\s*\([^)]*\)")                   # «(رموز)» after a شيخ/تلميذ name
-_SHU = re.compile(r"روى\s+عن\s*:")                     # شيوخ block opener
-_TAL = re.compile(r"(?:و?روى)\s+عنه\s*:")              # تلاميذ block opener
-# Where the head's NAME ends and the biography begins.
+# شيوخ opener: full «رَوَى عَن:» or the abbreviated «عَن:» minor entries use — the COLON is required
+# so the chain-word «عَنْ فلان» (no colon) is never mistaken for the block opener.
+_SHU = re.compile("(?:%s)" % _alt("روى عن", "وروى عن", "حدث عن", "عن") + r"\s*:")
+# تلاميذ opener: «رَوَى عَنه:» / «وَرَوَى عَنه:» or the abbreviated «وعَنه:» / «عَنه:».
+_TAL = re.compile("(?:%s)" % _alt("روى عنه", "وروى عنه", "وعنه", "عنه") + r"\s*:")
+# Where the head's NAME ends and the biography begins: a block opener (needs the colon) or a
+# biography word. Diacritised throughout.
 _NAME_END = re.compile(
-    r"\s*(?:روى\s+عن|روى\s+له|وروى|قال|وقال|مات|توفي|توفى|وكان|كان|ذكره|له\s+صحبة|"
-    r"وفد|نزيل|نزل|سكن|أصله|يقال)\b"
+    r"\s*(?:"
+    + "(?:%s)\\s*:" % _alt("روى عن", "وروى عن", "روى عنه", "روى له", "حدث عن", "عن", "عنه")
+    + "|(?:%s)\\b" % _alt("قال", "وقال", "مات", "توفي", "توفى", "وكان", "كان", "ذكره",
+                          "وفد", "نزيل", "نزل", "سكن", "أصله", "يقال", "له صحبة")
+    + r")"
 )
-_KUNYA = re.compile(r"(?<!\w)(أبو|أبي|أبا|أم)\s+(\S+)")
+_KUNYA = re.compile(r"(?<!\S)(%s)\s+(\S+)" % _alt("أبو", "أبي", "أبا", "أم"))
 # A «قال … : <appraisal>» verdict line; we keep only appraisals carrying a grade word.
-_VERDICT = re.compile(r"(?:^|[\s.،])(?:و?قال|قاله|قَالَ)\b[^:.\n]{0,55}?:\s*([^.\n]{2,90})")
+_VERDICT = re.compile(
+    r"(?:^|[\s.،])(?:%s)\b[^:.\n]{0,55}?:\s*([^.\n]{2,90})" % _alt("قال", "وقال", "قاله")
+)
 _GRADE_WORDS = ("ثقة", "ثبت", "حافظ", "صدوق", "لا بأس", "ليس به بأس", "صالح", "مقبول", "مستور",
                 "لين", "ضعيف", "ليس بثقة", "لا يحتج", "منكر", "متروك", "كذاب", "مجهول", "وضاع",
                 "حجة", "إمام", "صحابي")
+# Where the تلاميذ list ends and the appraisals / death notice begin.
+_TAL_END = re.compile(r"(?:%s)\b" % _alt("قال", "وقال", "مات", "توفي", "توفى", "روى له", "قلت"))
 _WS = re.compile(r"\s+")
 
 
@@ -97,7 +114,8 @@ def _verdicts(body: str) -> list[str]:
     out: list[str] = []
     for m in _VERDICT.finditer(body):
         phrase = m.group(1).strip(" ،")
-        if any(w in phrase for w in _GRADE_WORDS) and phrase not in out:
+        folded = strip_diacritics(phrase)               # «ثِقَةٌ» must match the bare «ثقة»
+        if any(w in folded for w in _GRADE_WORDS) and phrase not in out:
             out.append(phrase)
     return out
 
@@ -121,7 +139,7 @@ def parse_entry(number: int | None, body: str) -> dict | None:
     if year:
         record["death_year"] = year
     shuyukh = _names(_block_between(body, _SHU, _TAL))
-    talamidh = _names(_block_between(body, _TAL, re.compile(r"قال|وقال|مات|توفي|روى\s+له")))
+    talamidh = _names(_block_between(body, _TAL, _TAL_END))
     if shuyukh:
         record["shuyukh"] = shuyukh
     if talamidh:
@@ -132,13 +150,32 @@ def parse_entry(number: int | None, body: str) -> dict | None:
     return record
 
 
+def _muqaddima_skip(have_books: list[bool]) -> int:
+    """Index of the first REAL tarjama, skipping the editor's ~200-page introduction.
+
+    The book has no ``numbers`` index, so ``book_main_text`` keeps the محقق's muqaddima (how he
+    prepared the edition — al-Mizzī's life, method, a numbered bibliography, praise quotes). Its
+    numbered points are prose / book-titles with no rumūz, whereas the dictionary proper is a
+    dense run of narrator entries that DO carry the Six-Books symbols. Return the first index
+    where a short window is mostly rumūz-bearing entries — the start of the dictionary."""
+    win = 15
+    for i in range(len(have_books) - win):
+        if sum(have_books[i:i + win]) >= 12:
+            return i
+    return 0
+
+
 def iter_tahdhib(data: dict) -> Iterator[dict]:
     """Yield a structured record for every numbered tarjama in a downloaded تهذيب الكمال book."""
     full = book_main_text(data)
     bounds = [m for m in _BOUNDARY.finditer(full) if m.group(1) is not None]
-    for i, m in enumerate(bounds):
-        end = bounds[i + 1].start() if i + 1 < len(bounds) else len(full)
-        record = parse_entry(arabic_digits_to_int(m.group(1)), full[m.end():end])
+    nums = [arabic_digits_to_int(m.group(1)) for m in bounds]
+    records = [
+        parse_entry(nums[i], full[m.end():(bounds[i + 1].start() if i + 1 < len(bounds) else len(full))])
+        for i, m in enumerate(bounds)
+    ]
+    start = _muqaddima_skip([bool(r and r.get("books")) for r in records])
+    for record in records[start:]:
         if record:
             yield record
 
