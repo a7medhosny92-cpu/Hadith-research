@@ -28,6 +28,7 @@ from app.rijal.grades import classify
 _BIN = {normalize_for_search(w) for w in ("بن", "ابن")}                 # patronymic links
 _GEN = {normalize_for_search(w) for w in                                # «… الكبير» ≠ «… حفيده»
         ("الكبير", "الأكبر", "الحفيد", "حفيد", "الأصغر", "الصغير", "الابن", "الأب", "الجد")}
+_KUNYA_P = {normalize_for_search(w) for w in ("أبو", "أبا", "أم")}      # the subject's kunya onset
 _TRUSTED_RANK = 5     # rank ≥ this is a "trusted" verdict (ثقة/صدوق/مقبول/صحابي); below it is weak
 
 
@@ -35,14 +36,57 @@ def _fold(text: str | None) -> str:
     return normalize_for_search(text or "")
 
 
+def _is_nisba(tok: str) -> bool:
+    """A nisba-like token «الـ…ـي» (الدمشقي، الكوفي، الفهمي) — a place/tribe discriminator."""
+    return tok.startswith("ال") and tok.endswith("ي") and len(tok) >= 4
+
+
+def lineage(name: str) -> list[tuple[str, ...]]:
+    """The nasab ancestor chain — [(ism), (father…), (grandfather…), …] — stopping at the first
+    *descriptor* (the subject's kunya «أبو…», a nisba, or a generation marker). A kunya particle
+    right **after a بن** is kept (it names a father «بن أبي بكر»), one not after بن ends the chain
+    (it is the subject's own kunya «… عمار أبو الوليد»). So «هشام بن عمار بن نصير … السلمي الدمشقي
+    الخطيب» → [(هشام,), (عمار,), (نصير,)] while «أحمد بن عبد الله بن يونس …» → [(احمد,), (عبد,الله),
+    (يونس,)] — distinguishing «عبد الله» from «عبد الواحد», and «بن يونس» from «بن محمد»."""
+    out: list[tuple[str, ...]] = []
+    cur: list[str] = []
+    after_bin = False
+    for tok in (normalize_for_search(w) for w in name.split()):
+        if not tok:
+            continue
+        if tok in _BIN:
+            if cur:
+                out.append(tuple(cur))
+                cur = []
+            after_bin = True
+            continue
+        if not after_bin and (tok in _KUNYA_P or tok in _GEN or _is_nisba(tok)):
+            break                                          # the subject's descriptors begin
+        cur.append(tok)
+        after_bin = False
+    if cur:
+        out.append(tuple(cur))
+    return out
+
+
+def lineage_compatible(a: dict, b: dict) -> bool:
+    """Do two nasab chains agree on every ancestor they BOTH name (one a prefix of the other)?
+    «هشام بن عمار» extends to «هشام بن عمار بن نصير» (compatible); «… بن عبد الله بن يونس» and
+    «… بن عبد الله بن محمد» disagree at the grandfather (not the same man)."""
+    la, lb = lineage(a["name"]), lineage(b["name"])
+    if not la or not lb:
+        return False
+    return all(x == y for x, y in zip(la, lb))
+
+
 def ident_key(name: str) -> tuple[str, ...]:
-    """«ism + first nasab»: folded tokens up to and including the first patronymic link —
-    «الليث بن سعد بن عبد الرحمن الفهمي» and «الليث بن سعد أبو الحارث» both key on (الليث، سعد)."""
-    toks = [t for t in (normalize_for_search(w) for w in name.split()) if t]
-    for i, t in enumerate(toks):
-        if t in _BIN:
-            return tuple(x for x in toks[: i + 2] if x not in _BIN)
-    return tuple(toks[:3])                                              # no nasab → first 3 tokens
+    """«ism + full father» from the lineage — «الليث بن سعد بن عبد الرحمن الفهمي» and «الليث بن
+    سعد أبو الحارث» both key on (الليث، سعد), but «أحمد بن عبد الله» and «أحمد بن عبد الواحد» key
+    apart. Falls back to the first folded tokens for a name with no nasab."""
+    lin = lineage(name)
+    if not lin:
+        return tuple(t for t in (normalize_for_search(w) for w in name.split()) if t)[:3]
+    return lin[0] + (lin[1] if len(lin) > 1 else ())
 
 
 def tokens(name: str) -> set[str]:
@@ -51,7 +95,7 @@ def tokens(name: str) -> set[str]:
 
 def nisbas(toks: set[str]) -> set[str]:
     """Nisba-like tokens: «الـ…ـي» (الدمشقي، الكوفي، الفهمي) — a place/tribe discriminator."""
-    return {t for t in toks if t.startswith("ال") and t.endswith("ي") and len(t) >= 4}
+    return {t for t in toks if _is_nisba(t)}
 
 
 def _trusted(grade: str | None) -> bool | None:
@@ -70,6 +114,8 @@ def _strong_grade_conflict(a: dict, b: dict) -> bool:
 def same_man(a: dict, b: dict, *, window: int = 20) -> bool:
     """Are two entries (already sharing an ``ident_key``) the same narrator? Prudent — see module
     docstring. Returns ``False`` whenever the evidence can't confirm it."""
+    if not lineage_compatible(a, b):
+        return False                                      # nasab chains disagree → different men
     A, B = tokens(a["name"]), tokens(b["name"])
     if (A & _GEN) != (B & _GEN):
         return False                                      # generation marker conflict

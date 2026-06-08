@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.rijal.dedup import collapse_duplicates, same_man
+from app.rijal.dedup import collapse_duplicates, ident_key, same_man
 
 
 def _names(records):
@@ -55,6 +55,25 @@ def test_strong_grade_conflict_blocks_the_merge():
     b = {"name": "سعيد بن بشير الأزدي", "grade": "متروك", "source": "الكاشف"}
     assert not same_man(a, b)
     assert collapse_duplicates([a, b])[1] == 0
+
+
+def test_grandfather_conflict_keeps_two_men_apart():
+    # same ident_key (أحمد بن عبد الله) but a conflicting grandfather (بن يونس ≠ بن محمد) — two
+    # different men the bare name confuses. The lineage check, not the nisba, must keep them apart.
+    a = {"name": "أحمد بن عبد الله بن يونس بن عبد الله اليربوعي", "grade": "ثقة", "source": "تقريب"}
+    b = {"name": "أحمد بن عبد الله بن محمد بن عبد الله الوكيل", "grade": "صدوق", "source": "الكاشف"}
+    assert ident_key(a["name"]) == ident_key(b["name"])     # they collide on ism+father…
+    assert not same_man(a, b)                                # …but the grandfather tells them apart
+    assert collapse_duplicates([a, b])[1] == 0
+
+
+def test_compound_father_is_not_truncated_to_one_token():
+    # «عبد الله» must not collapse to «عبد» — «أحمد بن عبد الله» and «أحمد بن عبد الواحد» are
+    # different men and must not even group together.
+    a = {"name": "أحمد بن عبد الله بن يونس", "grade": "ثقة"}
+    b = {"name": "أحمد بن عبد الواحد بن واقد التميمي", "grade": "ثقة"}
+    assert ident_key(a["name"]) != ident_key(b["name"])
+    assert not same_man(a, b)
 
 
 def test_collapse_leaves_distinct_names_and_unrelated_entries_untouched():
