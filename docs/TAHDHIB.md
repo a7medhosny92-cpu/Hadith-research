@@ -96,7 +96,19 @@ Recorded so the reasoning survives a context reset (and for anyone extending it)
    الثوري (right rumūz, right شيوخ/تلاميذ) plus corpus-wide coverage %s caught each regression (e.g. an
    over-eager name cut, or `_story_start`-style over-reach) before it was accepted.
 
-## Next
-Wire it in: (a) integrate the شيوخ/تلاميذ network into `build_graph` so a narrator is identified from
-his chain neighbours → resolves the «مشترك» (A) homonyms at verdict time; (b) feed full names + multi-
-critic verdicts as a rich rijal source. NOT yet imported by the pipeline (parse skips RIJAL_PROSE_BOOKS).
+## Wired into the graph (homonym disambiguation) — DONE
+`app/rijal/tahdhib.py` turns each tarjama into an **association**: the man's رجال canonical name →
+the cleaned tokens of his شيوخ+تلاميذ (added only when he's resolved *unambiguously* in the authority).
+`scripts/build_graph.py` merges these into the pass-1 `profiles` (when `3722.json` is on disk), so the
+canonicaliser's `_pick` weighs al-Mizzī's **authoritative** company — the surest signal — when
+resolving a «مشترك» bare name from its chain. No file/step added (parsed inline, gated on the book);
+absent book ⇒ unchanged behaviour. Activates on the user's next `update.bat` (build_graph step). The
+true effect on the audit's A/«مشترك» count is measured after that rebuild.
+
+## Still to do
+- (b) feed full names + **multi-critic verdicts** as a rich rijal source (the «double-opinion» page);
+- also add تهذيب edges to the graph **adjacency** (not just disambiguation) so `/narrator` shows the
+  authoritative شيوخ/تلاميذ;
+- polish: `death_year` (vocalised spelled-out years), تلاميذ truncation on the longest entries,
+  the ~14% of names that still absorb bio.
+Not imported by the hadith parse (parse skips RIJAL_PROSE_BOOKS); only `build_graph` reads the book.

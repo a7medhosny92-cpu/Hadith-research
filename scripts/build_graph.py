@@ -25,6 +25,7 @@ from app.qa.isnad import analyze_isnad
 from app.rijal.canon import Canonicalizer
 from app.rijal.graph import NarratorGraph
 from app.rijal.index import RijalIndex, _clean_tokens, load_entries
+from app.rijal.tahdhib import TAHDHIB_BOOK_ID, load_tahdhib_associations
 from app.search.index import _read_jsonl  # parsed JSONL reader
 from scripts._atomic import rebuild
 
@@ -75,6 +76,15 @@ def main() -> None:
     }
     g0.close()
     print(f"Pass 1: {len(profiles)} narrators (confident merges) → context profiles")
+
+    # …reinforced with تهذيب الكمال's authoritative شيوخ/تلاميذ, when the book is on disk: this is
+    # the company al-Mizzī states for each man, the surest signal for disambiguating «مشترك» names.
+    tahdhib_book = settings.raw_dir / "books" / f"{TAHDHIB_BOOK_ID}.json"
+    if tahdhib_book.exists():
+        extra = load_tahdhib_associations(tahdhib_book, rijal)
+        for name, toks in extra.items():
+            profiles.setdefault(name, set()).update(toks)
+        print(f"Pass 1+: تهذيب الكمال company merged for {len(extra)} narrators")
 
     # Pass 2 — confident + context disambiguation, into the real DB.
     canon1 = Canonicalizer(rijal, associations=profiles)

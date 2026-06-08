@@ -116,10 +116,15 @@ docs/TAHDHIB.md): the book is heavily vocalised → every marker regex is diacri
 **«عَن:» / «وعَنه:»** (not «رَوَى عَن:») — colon required so chain «عَنْ» isn't mistaken; no
 `indexes.numbers` so the محقق's ~200-page intro is skipped via a dense-rumūz-run heuristic
 (`_muqaddima_skip`). Weak spots: ~14% names absorb bio, `death_year` ~19% (misses vocalised
-spelled-out years), noisy verdicts. NOT wired into the pipeline yet (parse skips RIJAL_PROSE_BOOKS).
-**Next:** integrate the شيوخ/تلاميذ network into `build_graph` (identify a narrator from his chain
-neighbours → resolves the 1245 «مشترك» homonyms) + feed names/verdicts as a rich rijal source. Prudent
-same-man merge rule: death-year ±~20 OR identical kunya; nisba/generation conflict blocks the merge.
+spelled-out years), noisy verdicts. **Wired into `build_graph` (this branch):** `app/rijal/tahdhib.py`
+turns each tarjama into an association (رجال canonical name → tokens of his شيوخ+تلاميذ, only when he
+resolves unambiguously); build_graph merges these into pass-1 `profiles` when `3722.json` is on disk,
+so `canon._pick` weighs al-Mizzī's authoritative company to resolve «مشترك» names — gated, no new
+pipeline step, no regression if the book is absent. Activates on the user's next `update.bat`; measure
+the A/«مشترك» drop after that. **Still to do:** feed multi-critic verdicts as a rich rijal source
+(double-opinion); add تهذيب edges to the graph adjacency for `/narrator` display; polish death/تلاميذ/
+long-names. Prudent same-man merge rule (for dedup): death-year ±~20 OR identical kunya; nisba/
+generation conflict blocks the merge.
 
 **⚠️ Per-volume page numbering (app-wide, user-flagged 2026-06-08 — FIXED PR #103):** many turath
 books are multi-volume and **reset `page` to 1 each volume** (تهذيب has 35; al-Mustadrak's printed
