@@ -84,17 +84,27 @@ def _order_ok(q_seq: list[str], f_seq: list[str], shared: set[str]) -> bool:
 
 def _score_entry(
     query_seq: list[str], query: set[str], seqs: list[list[str]], kunya_seqs: list[list[str]]
-) -> tuple[int, tuple[int, int] | None]:
+) -> tuple[int, tuple[int, bool, int] | None]:
     """Score one entry against the query.
 
-    Returns ``(specificity, best_partial)`` where ``specificity > 0`` means an entry form
-    is fully inside the query (containment — the entry's name appears in the cited name),
-    and ``best_partial = (cover, form_len)`` means the cited name is a partial of an entry
-    form (query ⊆ form). Either may be falsy. Teknonym forms (``kunya_seqs``) match
-    reverse-only — they can only ever contribute a partial, never a containment.
+    Returns ``(specificity, best_partial)``. ``specificity > 0`` means an entry form is fully
+    inside the query (containment — the entry's name appears in the cited name). ``best_partial
+    = (cover, is_prefix, form_len)`` means the cited name is a partial of a form (query ⊆ form);
+    ``is_prefix`` is True when the query is the *leading run* of that form — its ism+nasab —
+    which marks the natural identity: «عدي بن حاتم» is عدي بن حاتم الطائي (prefix), not عدي بن
+    الفضل … أبو حاتم (where حاتم only shows up later, inside a kunya). Teknonym forms
+    (``kunya_seqs``) match reverse-only and only when the query is itself a kunya.
     """
     specificity = 0
-    best: tuple[int, int] | None = None
+    best: tuple[int, bool, int] | None = None
+    qlen = len(query_seq)
+
+    def offer(seq: list[str]) -> None:
+        nonlocal best
+        cand = (len(query), seq[:qlen] == query_seq, len(seq))   # (cover, is_prefix, form_len)
+        if best is None or (cand[0], cand[1], -cand[2]) > (best[0], best[1], -best[2]):
+            best = cand
+
     for seq in seqs:
         form = set(seq)
         # a bare single-token form (an ism like «عمر») can't confidently identify a more
@@ -107,21 +117,15 @@ def _score_entry(
         if len(shared) == len(form):               # form ⊆ query → entry's name is in the query
             specificity = max(specificity, len(form))
         elif len(shared) == len(query):            # query ⊆ form → cited name is a partial
-            cand = (len(shared), len(form))
-            if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]):
-                best = cand
+            offer(seq)
         # else: neither contains the other → coincidental shared token(s), not a match
     # teknonyms identify a man only when the chain cites him BY the kunya: the query must
     # itself be a kunya («أبو …»/«أم …») AND lie within the form. A bare ism «معمر» is NOT the
     # man whose kunya is «أبو معمر»; «حبيب بن أبي ثابت» is not the kunya «أبو ثابت».
     if query_seq and query_seq[0] in _KUNYA_PARTICLES:
         for kseq in kunya_seqs:                      # only query ⊆ kunya (reverse)
-            kf = set(kseq)
-            shared = query & kf
-            if shared and len(shared) == len(query) and _order_ok(query_seq, kseq, shared):
-                cand = (len(shared), len(kf))
-                if best is None or cand[0] > best[0] or (cand[0] == best[0] and cand[1] < best[1]):
-                    best = cand
+            if query <= set(kseq) and _order_ok(query_seq, kseq, query):
+                offer(kseq)
     return specificity, best
 
 
@@ -234,14 +238,14 @@ class RijalIndex:
         if len(query) == 1 and query_seq[0] in _NON_IDENTIFYING:
             return None     # a bare kinship/connector particle — identifies no one
 
-        contained: list[tuple[int, RijalEntry]] = []        # (specificity, entry) — name ⊆ query
-        partial: list[tuple[int, int, RijalEntry]] = []     # (cover, form_len, entry) — query ⊆ name
+        contained: list[tuple[int, RijalEntry]] = []                  # (specificity, entry)
+        partial: list[tuple[int, bool, int, RijalEntry]] = []         # (cover, is_prefix, len, entry)
         for entry, seqs, kunya_seqs in zip(self._entries, self._form_seqs, self._kunya_seqs):
             specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs)
             if specificity:
                 contained.append((specificity, entry))
             elif best:
-                partial.append((best[0], best[1], entry))
+                partial.append((best[0], best[1], best[2], entry))
 
         if contained:
             contained.sort(key=lambda pair: -pair[0])
@@ -251,13 +255,16 @@ class RijalIndex:
             return RijalMatch(best_e, 1.0, bool(alternatives), alternatives[:3])
 
         if partial:
-            partial.sort(key=lambda t: (-t[0], t[1]))   # cover most of the query, then shortest name
-            top_cov, top_len, best_e = partial[0]
-            # ties are only among names equally close to the query (same coverage and length) —
-            # real homonyms like سعيد ↦ ابن المسيب/ابن جبير, flagged for the reader to resolve.
+            # cover the query most; then prefer a *prefix* form (the cited ism+nasab) over one
+            # where the shared tokens only coincide deeper in the name; then the shortest.
+            partial.sort(key=lambda t: (-t[0], not t[1], t[2]))
+            top_cov, top_pref, _, best_e = partial[0]
+            # ambiguous only among equally-good readings (same cover AND prefix-ness): «عدي بن
+            # حاتم» → عدي بن حاتم الطائي (the only prefix) is decisive, while «سعيد» → المسيب/جبير
+            # (both prefixes) stays مشترك for the chain/reader to resolve.
             alternatives = [
-                e.name for cov, ln, e in partial
-                if cov == top_cov and ln == top_len and e.name != best_e.name
+                e.name for cov, pref, ln, e in partial
+                if cov == top_cov and pref == top_pref and e.name != best_e.name
             ]
             return RijalMatch(best_e, 1.0, bool(alternatives), alternatives[:3])
 
@@ -278,13 +285,13 @@ class RijalIndex:
         if not query or (len(query) == 1 and query_seq[0] in _NON_IDENTIFYING):
             return []
         contained: list[tuple[int, RijalEntry]] = []
-        partial: list[tuple[int, RijalEntry]] = []
+        partial: list[tuple[int, bool, RijalEntry]] = []
         for entry, seqs, kunya_seqs in zip(self._entries, self._form_seqs, self._kunya_seqs):
             specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs)
             if specificity:
                 contained.append((specificity, entry))
             elif best:
-                partial.append((best[0], entry))
+                partial.append((best[0], best[1], entry))
 
         out: list[RijalEntry] = []
         seen: set[str] = set()
@@ -300,9 +307,13 @@ class RijalIndex:
                 if s == top:
                     take(e)
         if partial:
-            top_cov = max(c for c, _ in partial)
-            for c, e in partial:
-                if c == top_cov:
+            # only the best reading: top coverage and, if any form is a prefix, prefix forms
+            # only — so coincidental namesakes (محمد بن السائب الكلبي for «محمد بن بشر») are left
+            # out of the homonym set the chain chooses among.
+            top_cov = max(c for c, _, _ in partial)
+            any_prefix = any(p for c, p, _ in partial if c == top_cov)
+            for c, pref, e in partial:
+                if c == top_cov and (pref or not any_prefix):
                     take(e)
         return out if len(out) <= 40 else []
 
