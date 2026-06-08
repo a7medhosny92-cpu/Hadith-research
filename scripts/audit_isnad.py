@@ -115,7 +115,7 @@ def main() -> None:
     for rid, coll, num, isnad in rows:
         scanned += 1
         if scanned % 500 == 0:
-            print(f"  … {scanned}/{total}", flush=True)
+            print(f"  … {scanned}/{total}", end="\r", flush=True)
         a = analyze_isnad(isnad, rijal=rijal, canon=canon)
         for code, detail in _flag_chain(a.narrators):
             counts[code] += 1
@@ -134,7 +134,7 @@ def main() -> None:
     out_path = settings.data_dir / "audit.json"
     out_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
 
-    print(f"scanned {scanned} chains → {out_path}")
+    print(f"\nscanned {scanned} chains → {out_path}")
     for code in ("P", "W", "S", "A"):
         print(f"  [{code}] {_LABEL[code]}: {counts[code]}")
 
