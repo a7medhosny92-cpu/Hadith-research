@@ -28,3 +28,46 @@ def test_dialogue_spans_are_kept_whole():
 def test_phrase_and_none_fallbacks_unchanged():
     assert split_isnad_matn("حدثنا فلان عن أنس قال: إنما الأعمال")[2] == "phrase"
     assert split_isnad_matn("حدثنا فلان عن أنس")[2] == "none"
+
+
+def test_narrative_matn_keeps_the_whole_story_not_just_the_first_quote():
+    # «… عن أبيه: أنّ رجلًا أتى النبيّ ﷺ … قال: فقال: "ادع تلك الشجرة" …» — a STORY whose first
+    # quote sits mid-narrative. The matn must be the whole story (question + answer + sequel),
+    # not just «ادع تلك الشجرة», and the chain must stay in the isnad. (al-Mustadrak 7514.)
+    isnad, matn, conf = split_isnad_matn(
+        "حدثنا فلان، عن عبد الله ابن بريدة، عن أبيه: أنَّ رجلًا أتى النبيَّ ﷺ فقال: "
+        'علِّمني شيئًا، قال: فقال: "ادع تلك الشجرة"، فدعا بها فجاءت حتى سلَّمت عليه، '
+        'ثم قال لها: "ارجعي" فرجعت'
+    )
+    assert conf == "quote"
+    assert matn.startswith("أنَّ رجلًا أتى النبيَّ")
+    assert "ادع تلك الشجرة" in matn and "ارجعي" in matn   # the whole narrative is kept
+    assert "ابن بريدة" in isnad and "ادع" not in isnad     # the chain stays isnad
+
+
+def test_nested_chain_anna_is_not_pulled_into_the_matn():
+    # «أنّه سمع فلانًا يقول: سمعت فلانًا … قال: "…"» is a nested CHAIN (سمع/سمعت links), not a
+    # story — the matn is only the final saying; the transmission «أنّ» stays in the isnad.
+    isnad, matn, _ = split_isnad_matn(
+        "حدثنا فلان، عن محمد، أنه سمع علقمة يقول: سمعت عمر يقول: "
+        'سمعت رسول الله ﷺ يقول: "إنما الأعمال بالنيات"'
+    )
+    assert matn == "إنما الأعمال بالنيات"
+    assert "سمع علقمة" in isnad
+
+
+def test_grade_tail_is_trimmed_from_a_phrase_matn():
+    # the al-Ḥākim grade «هذا حديث صحيح الإسناد ولم يخرّجاه» the book prints after the matn
+    # must never show as matn.
+    _, matn, _ = split_isnad_matn(
+        "حدثنا فلان قال: قال رسول الله ﷺ: خيرُكم خيرُكم للنساء. هذا حديث صحيح الإسناد ولم يخرجاه"
+    )
+    assert "خيرُكم خيرُكم للنساء" in matn
+    assert "هذا حديث" not in matn and "يخرجاه" not in matn
+
+
+def test_wa_fi_albab_crossreference_is_trimmed():
+    _, matn, _ = split_isnad_matn(
+        "حدثنا فلان قال: قال رسول الله ﷺ: لا ضرر ولا ضرار. وفي الباب عن أبي هريرة"
+    )
+    assert "لا ضرر ولا ضرار" in matn and "وفي الباب" not in matn
