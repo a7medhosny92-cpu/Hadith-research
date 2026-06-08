@@ -80,9 +80,10 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
 **Merged to main recently:** chain-first id; teknonym reverse-only; prefix preference; grade-agreement;
 «عبد الله بن» drop (earlier PRs) · ancestor-in-nasab (#87) · `measure_dedup.py` (#87) ·
 `sample_source.py` (#88) · single-token + bare-grave junk drops (#89: kills خالد=صحابي,
-يونس بن محمد=كذاب, عبد الرحمن بن محمد=كذاب).
+يونس بن محمد=كذاب, عبد الرحمن بن محمد=كذاب) · **matn-completeness fix (#102)** · **تهذيب network
+extractor + volume-in-citations (#103)**. (User must `update.bat` — which pulls main — to apply them.)
 
-**Matn extraction fix (2026-06-08, this branch):** user saw «detti non completi» — e.g. al-Mustadrak
+**Matn extraction fix (2026-06-08, PR #102 → main):** user saw «detti non completi» — e.g. al-Mustadrak
 ط الرسالة (book **1424**) #7514 «ادع تلك الشجرة» showed matn=«ادع تلك الشجرة» (17 chars) with the whole
 story dumped into the isnad (which ended at «قال: فقال»). Cause was `split_isnad_matn`: the *quote*
 strategy took only the first quoted span and stopped at a >40-char narration gap. Fixes in
@@ -108,7 +109,7 @@ correct). NB: parse + index are FULL rebuilds, so this propagates on the user's 
 **328** removable same-man duplicates · **1245** confirmed-homonym keys · **350** undecidable for
 want of death-year/kunya (a richer source would settle them).
 
-**تهذيب الكمال extractor — BUILT (`app/parsing/tahdhib_extract.py`, this branch):** parses the real
+**تهذيب الكمال extractor — BUILT (`app/parsing/tahdhib_extract.py`, PR #103 → main):** parses the real
 3722 → **~6,870 tarājim, books 92% · شيوخ 94% · تلاميذ 93% · verdicts 57%**. Key lessons (see
 docs/TAHDHIB.md): the book is heavily vocalised → every marker regex is diacritic-tolerant
 (`flexible_word`) and grade words are matched diacritic-folded; minor narrators use the abbreviated
@@ -120,15 +121,19 @@ spelled-out years), noisy verdicts. NOT wired into the pipeline yet (parse skips
 neighbours → resolves the 1245 «مشترك» homonyms) + feed names/verdicts as a rich rijal source. Prudent
 same-man merge rule: death-year ±~20 OR identical kunya; nisba/generation conflict blocks the merge.
 
-**⚠️ Per-volume page numbering (app-wide, user-flagged 2026-06-08):** many turath books are multi-
-volume and **reset `page` to 1 each volume** (تهذيب has 35; al-Mustadrak's printed «204» occurs 35×),
-so a citation needs **`vol` + `page`**, never `page` alone. Parsed records already carry `volume`/`page`
-— the bug is the UI showing «ص 229» without «ج». FIX: every citation (search cards, القرآن copy text,
-saved notebook chips, takhrij, isnad source) must render «ج {volume} · ص {page}» when volume exists.
+**⚠️ Per-volume page numbering (app-wide, user-flagged 2026-06-08 — FIXED PR #103):** many turath
+books are multi-volume and **reset `page` to 1 each volume** (تهذيب has 35; al-Mustadrak's printed
+«204» occurs 35×), so a citation needs **`vol` + `page`**, never `page` alone. Done: a single
+`citeOf()` in `index.html` renders «collection · رقم N · ج V · ص P» for search cards, report variants,
+copy-all, takhrij narrations, isnad source, audit case detail; `volume` saved into notebook chips and
+added to the takhrij narration dict (`app/qa/takhrij.py`). Number-only audit citations left as-is
+(رقم is unambiguous). **Keep this rule for any NEW citation surface.**
 
-**Waiting on the user:** run `update.bat` **to completion** (it rebuilds rijal AND regenerates the
-audit — the last run stalled mid-flight, leaving stale numbers) → send the new W/S/A from the
-«التدقيق» tab; and `sample_source 3722` samples of تهذيب الكمال.
+**Waiting on the user:** run `update.bat` **to completion** (step 2 pulls main → applies #102/#103;
+then parse+index rebuild, so the matn fix and new citations land everywhere; it also rebuilds rijal
+and regenerates the audit) → then send the new W/S/A from the «التدقيق» tab for the true post-fix
+numbers. (تهذيب samples no longer needed — the extractor is built; `sample_source 3722` stays only as
+a study tool.)
 
 ## App cleanup / UX — TODO (user asked to remember, 2026-06-08)
 The user runs **update.bat-only** and is overwhelmed by the pile of single-step launchers («perdo il
