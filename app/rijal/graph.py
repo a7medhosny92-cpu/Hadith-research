@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable
 
@@ -39,9 +40,13 @@ _PROPHET = {"النبي", "رسول", "الله", "نبي"}
 _EULOGY_TOKENS = {"صلي", "عليه", "وسلم", "واله", "وصحبه", "سلم", "عن"}
 # The single canonical node every Prophet reference collapses to.
 PROPHET_NODE = "النبي ﷺ"
+
+
+@lru_cache(maxsize=1 << 17)
 def name_tokens(text: str) -> frozenset[str]:
     """Folded tokens for narrator-name matching (kunya cases أبو/أبا/أبي unified, but
-    «أبي بن …» kept as the name أُبَيّ)."""
+    «أبي بن …» kept as the name أُبَيّ). Memoised — called millions of times on repeated
+    names while building the graph."""
     return frozenset(fold_kunya(normalize_for_search(text or "").split()))
 
 
@@ -185,6 +190,13 @@ class NarratorGraph:
 
     def __init__(self, db_path: str | Path = ":memory:") -> None:
         self._con = sqlite3.connect(str(db_path), check_same_thread=False)
+        # The graph is rebuilt atomically (scripts._atomic.rebuild → temp file, then renamed) and
+        # is read-only once served, so the write-heavy build (≈1M node ops + ≈0.9M link ops over
+        # the corpus, twice) can trade durability for speed: no fsync, in-memory journal/temp, a
+        # bigger page cache. A crash just discards the temp and keeps the previous graph.
+        for pragma in ("journal_mode = MEMORY", "synchronous = OFF",
+                       "temp_store = MEMORY", "cache_size = -65536"):
+            self._con.execute(f"PRAGMA {pragma}")
         self._con.executescript(_SCHEMA)
         self._nodes_cache: list[_Node] | None = None
 
