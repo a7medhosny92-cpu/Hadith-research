@@ -51,8 +51,61 @@ _ANNA = re.compile(
     )
 )
 # A gap between two quoted spans that signals the matn has ended and an editor's note /
-# takhrij begins — so we do NOT merge the next span into the matn.
-_EDITORIAL = re.compile(r"أبو عبد الله|تنبيه|انظر|أخرجه|رواه|أخرجاه|تحفة|الأطراف|قلت|\(\s*\d")
+# takhrij / grade begins — so we do NOT merge the next span into the matn.
+_EDITORIAL = re.compile(
+    r"أبو عبد الله|تنبيه|انظر|أخرجه|رواه|أخرجاه|تحفة|الأطراف|قلت|على شرط|هذا حديث|هذا إسناد|\(\s*\d"
+)
+# Crossing the *narration* between two spoken spans of one matn («…» فدعا بها فجاءت «…»): we
+# step over it unless it is an editorial/takhrij marker or an implausibly long gap.
+_MAX_NARRATION_GAP = 220
+# Reported-speech turns (قال/فقال/وقال/قالت/يقول…) — used to tell a multi-turn STORY from a
+# plain saying.
+_SPEECH = re.compile(
+    r"(?:^|[\s،؛])(?:ف|و)?(?:%s)" % "|".join(flexible_word(w) for w in ("قال", "قالت", "يقول", "تقول"))
+)
+# A story matn opens with a post-chain «أنّ …» (e.g. «عن أبيه: أنّ رجلًا أتى النبيّ ﷺ…»).
+_ANNA_WORD = re.compile(
+    r"(?<=[\s،؛:])(?:%s)(?=\s)" % "|".join(flexible_word(w) for w in ("أن", "أنه", "أنها"))
+)
+
+
+def _story_start(lead: str) -> int | None:
+    """Index in ``lead`` where a post-chain *story* matn begins, or ``None``.
+
+    A story is a «أنّ …» (after chain material) whose own tail is **pure narration** — no
+    further transmission link — trailed by **two or more** reported-speech turns: «أنّ رجلًا
+    أتى النبيّ ﷺ فقال… قال… فقال:», whose first quote is NOT the matn's start, so the man's
+    question and the narration would otherwise be mis-filed as isnad. A plain «أنّ النبيّ ﷺ
+    قال:» (one turn) — or a nested chain «أنّه سمع فلانًا يقول: سمعت فلانًا…» — is left alone."""
+    for m in _ANNA_WORD.finditer(lead):
+        tail = lead[m.start():]
+        if (_TRANSMIT.search(lead[:m.start()])     # the «أنّ» comes AFTER the chain
+                and not _TRANSMIT.search(tail)      # …and what follows is narration, not a nested chain
+                and len(_SPEECH.findall(tail)) >= 2):  # …with ≥2 spoken turns — a real story
+            return m.start()
+    return None
+
+
+# A grade / takhrīj tail the source prints AFTER the matn — al-Ḥākim's «هذا حديث صحيح
+# الإسناد ولم يخرّجاه» / «على شرط الشيخين», al-Dhahabī's «[التعليق …]», a «وفي الباب» cross-
+# reference — trimmed so a verdict never shows as part of the matn itself.
+_GRADE_TAIL = re.compile(
+    "(?:%s).*$" % "|".join((
+        flexible_word("هذا") + r"\s+" + flexible_word("حديث"),
+        flexible_word("هذا") + r"\s+" + flexible_word("إسناد"),
+        flexible_word("هذا") + r"\s+" + flexible_word("خبر"),
+        flexible_word("على") + r"\s+" + flexible_word("شرط"),
+        r"\[\s*" + flexible_word("التعليق"),
+        flexible_word("تلخيص") + r"\s+" + flexible_word("الذهبي"),
+        flexible_word("وفي") + r"\s+" + flexible_word("الباب"),
+    )),
+    re.DOTALL,
+)
+
+
+def _trim_grade_tail(matn: str) -> str:
+    """Drop a trailing «هذا حديث صحيح…» / «على شرط…» grade or takhrīj note from a matn."""
+    return _GRADE_TAIL.sub("", matn).strip(_STRIP)
 
 
 def _quoted_spans(text: str) -> list[tuple[int, int]]:
@@ -75,20 +128,30 @@ def _quoted_spans(text: str) -> list[tuple[int, int]]:
 
 
 def split_isnad_matn(text: str) -> tuple[str, str, str]:
+    """Return ``(isnad, matn, confidence)`` — the matn with any trailing grade tail removed."""
+    isnad, matn, conf = _split_isnad_matn(text)
+    return isnad, _trim_grade_tail(matn), conf
+
+
+def _split_isnad_matn(text: str) -> tuple[str, str, str]:
     """Return ``(isnad, matn, confidence)`` where confidence is the strategy used."""
     text = text.strip()
 
     spans = _quoted_spans(text)
     if spans:
-        # the matn is the first quoted span, extended over *adjacent dialogue* spans
-        # («…» فقال «…»), but stopping at an editorial/takhrij tail so it isn't swallowed.
+        # the matn is the first quoted span, extended over the *dialogue / narration* of one
+        # story («…» فدعا بها فجاءت «…»), but stopping at an editorial/takhrij tail.
         start, end = spans[0]
         for open_i, close_i in spans[1:]:
             gap = text[end + 1:open_i].strip()
-            if len(gap) <= 40 and not _EDITORIAL.search(gap):
-                end = close_i
-            else:
+            if _EDITORIAL.search(gap) or len(gap) > _MAX_NARRATION_GAP:
                 break
+            end = close_i
+        # …and if that first quote sits INSIDE a story (a post-chain «أنّ …» with ≥2 spoken
+        # turns ahead of it), the matn really begins at the «أنّ», not at the quote.
+        story = _story_start(text[:start])
+        if story is not None:
+            start = story
         matn = _WS.sub(" ", _QUOTE_CHARS.sub(" ", text[start:end + 1])).strip(_STRIP)
         if matn:                       # a real quoted matn
             return text[:start].strip(_STRIP), matn, "quote"

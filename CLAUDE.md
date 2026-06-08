@@ -82,6 +82,18 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
 `sample_source.py` (#88) · single-token + bare-grave junk drops (#89: kills خالد=صحابي,
 يونس بن محمد=كذاب, عبد الرحمن بن محمد=كذاب).
 
+**Matn extraction fix (2026-06-08, this branch):** user saw «detti non completi» — e.g. al-Mustadrak
+ط الرسالة (book **1424**) #7514 «ادع تلك الشجرة» showed matn=«ادع تلك الشجرة» (17 chars) with the whole
+story dumped into the isnad (which ended at «قال: فقال»). Cause was `split_isnad_matn`: the *quote*
+strategy took only the first quoted span and stopped at a >40-char narration gap. Fixes in
+`app/parsing/isnad_matn.py`: (1) cross the **narration between dialogue quotes** of one story (stop
+only at an editorial/takhrij marker or >220 chars); (2) `_story_start` — when the first quote sits
+inside a post-chain **story** «أنّ رجلًا أتى النبيّ ﷺ … قال … فقال:» (≥2 spoken turns, *no* nested
+سمع/حدثنا/عن link), start the matn at the «أنّ»; (3) `_trim_grade_tail` — drop a trailing al-Ḥākim /
+Tirmidhī grade or takhrīj («هذا حديث صحيح…», «على شرط…», «وفي الباب…»). Verified vs old over all books:
+**2034 matns improved, ~88 editorial tails trimmed, 0 real matn lost** (Bukhārī #1 / Muslim #95 stay
+correct). NB: parse + index are FULL rebuilds, so this propagates on the user's next `update.bat`.
+
 **Root-cause inventory of remaining flags (diagnosed on the real rijal):**
 - *Stale audit*: top W/S repeats (عثمان بن أبي شيبة ×~80, عبد الله بن محمد ×~50, أبي إسحاق, أبو أسامة)
   already neutralised by grade-agreement → held as مشترك after rebuild.
