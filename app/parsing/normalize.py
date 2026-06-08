@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 
 # Tashkeel / Quranic annotation marks (harakat, tanwin, shadda, sukun, dagger alef…).
 _DIACRITICS = re.compile(r"[ؐ-ًؚ-ٰٟۖ-ۜ۟-۪ۨ-ۭ]")
@@ -35,6 +36,10 @@ _FOLD = str.maketrans(
 )
 
 
+# These two are pure and get called millions of times on a small set of repeated strings
+# (narrator names during graph-building / rijal-matching), so memoise them. A bounded LRU keeps
+# memory flat even when they also run over long, mostly-unique matns during parsing/indexing.
+@lru_cache(maxsize=1 << 17)
 def strip_diacritics(text: str) -> str:
     """Remove tashkeel and tatweel but keep letters as written."""
     text = unicodedata.normalize("NFC", text)
@@ -43,6 +48,7 @@ def strip_diacritics(text: str) -> str:
     return _WS.sub(" ", text).strip()
 
 
+@lru_cache(maxsize=1 << 17)
 def normalize_for_search(text: str) -> str:
     """Fold orthographic variation for robust lexical / embedding matching."""
     text = strip_diacritics(text)
