@@ -117,6 +117,20 @@ correct). NB: parse + index are FULL rebuilds, so this propagates on the user's 
 **328** removable same-man duplicates · **1245** confirmed-homonym keys · **350** undecidable for
 want of death-year/kunya (a richer source would settle them).
 
+**Same-man dedup — BUILT (`app/rijal/dedup.py`, on branch, validated on the user's real rijal):**
+Audit diagnosis showed ~half of «مشترك» (A) is the SAME man written two ways across تقريب/الكاشف
+(هشام بن عمار, الليث بن سعد, يزيد بن هارون — high-frequency, so a few dups cause thousands of A flags);
+`merge_source` couldn't unify them (lookup is containment-only; differing tails miss) and kept both.
+`collapse_duplicates` collapses them after the source-merge. **Name rule:** same ism+father, lineage-
+compatible (the nasab chains agree on every shared ancestor — «عبد الله»≠«عبد الواحد», «بن يونس»≠«بن
+محمد»), shared specific nisba (no generation/strong-grade conflict) OR death(±20)/kunya. **+ corpus
+veto (the user's idea):** `CorpusCompany` reads the PREVIOUS run's `narrators.db`; the name *proposes*,
+the chain company *vetoes* a merge it contradicts (disjoint شيوخ/تلاميذ — التنيسي vs التستري), absent
+men trust the name (**mix** policy). Measured on the real rijal: name-only 806 merges (118 are graph-
+contradicted homonyms!), **mix 725** (drops the 118 false, keeps 121 the graph can't see), strict 618.
+Wired into build_rijal (loads the graph if present). NOT on main yet — pending the user's go-ahead +
+the real A re-measure after rebuild.
+
 **تهذيب الكمال extractor — BUILT (`app/parsing/tahdhib_extract.py`, PR #103 → main):** parses the real
 3722 → **~6,870 tarājim, books 92% · شيوخ 94% · تلاميذ 93% · verdicts 57%**. Key lessons (see
 docs/TAHDHIB.md): the book is heavily vocalised → every marker regex is diacritic-tolerant

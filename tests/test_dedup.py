@@ -2,11 +2,25 @@
 
 from __future__ import annotations
 
-from app.rijal.dedup import collapse_duplicates, ident_key, same_man
+import sqlite3
+
+from app.rijal.dedup import CorpusCompany, collapse_duplicates, ident_key, same_man
 
 
 def _names(records):
     return [r["name"] for r in records]
+
+
+def _graph(path, nodes, links):
+    """A tiny narrators.db: ``nodes`` = [(id, name, freq)], ``links`` = [(teacher_id, student_id)]."""
+    con = sqlite3.connect(str(path))
+    con.execute("CREATE TABLE narrator (id INTEGER PRIMARY KEY, norm TEXT, name TEXT, freq INTEGER)")
+    con.execute("CREATE TABLE link (teacher INTEGER, student INTEGER, weight INTEGER)")
+    con.executemany("INSERT INTO narrator VALUES (?, '', ?, ?)", nodes)
+    con.executemany("INSERT INTO link VALUES (?, ?, 1)", links)
+    con.commit()
+    con.close()
+    return CorpusCompany(path)
 
 
 def test_shared_nisba_duplicate_is_one_man():
@@ -86,3 +100,42 @@ def test_collapse_leaves_distinct_names_and_unrelated_entries_untouched():
     assert removed == 1
     assert "مالك بن أنس الأصبحي" in _names(kept)
     assert sum(1 for n in _names(kept) if n.startswith("يزيد بن هارون")) == 1
+
+
+def test_corpus_company_vetoes_a_homonym_the_name_would_fuse(tmp_path):
+    # «أحمد بن عيسى المصري التنيسي» and «… المصري التستري» share the nisba المصري, so the name
+    # proposes a merge — but the corpus cites them with disjoint company → two men → vetoed.
+    comp = _graph(
+        tmp_path / "g.db",
+        nodes=[(1, "أحمد بن عيسى التنيسي", 30), (2, "أحمد بن عيسى التستري", 20),
+               (3, "شيخ أول", 5), (4, "شيخ ثان", 5), (5, "شيخ ثالث", 5), (6, "شيخ رابع", 5)],
+        links=[(3, 1), (4, 1), (5, 2), (6, 2)],          # node 1 ↔ {3,4}; node 2 ↔ {5,6}: disjoint
+    )
+    a = {"name": "أحمد بن عيسى المصري التنيسي", "grade": "ثقة"}
+    b = {"name": "أحمد بن عيسى المصري التستري", "grade": "صدوق"}
+    assert same_man(a, b)                                 # the name alone would merge them
+    assert comp.vetoes(a["name"], b["name"])              # the corpus contradicts it
+    assert collapse_duplicates([a, b], company=comp)[1] == 0       # mix: vetoed, not merged
+    assert collapse_duplicates([a, b])[1] == 1                     # name-only: merged (the false fuse)
+
+
+def test_corpus_company_confirms_one_man(tmp_path):
+    comp = _graph(
+        tmp_path / "g.db",
+        nodes=[(1, "هشام بن عمار", 100), (2, "الوليد بن مسلم", 9), (3, "سفيان بن عيينة", 9)],
+        links=[(2, 1), (3, 1)],
+    )
+    a = {"name": "هشام بن عمار الدمشقي الخطيب", "grade": "صدوق"}
+    b = {"name": "هشام بن عمار الدمشقي المقرئ", "grade": "ثقة"}
+    assert comp.confirms(a["name"], b["name"]) and not comp.vetoes(a["name"], b["name"])
+    assert collapse_duplicates([a, b], company=comp)[1] == 1       # one node → merged
+
+
+def test_corpus_company_absent_man_is_trusted_to_the_name(tmp_path):
+    # neither man is in the graph → the mix does NOT veto (trusts the name); the strict policy does.
+    comp = _graph(tmp_path / "g.db", nodes=[(1, "مالك بن أنس", 50)], links=[])
+    a = {"name": "يزيد بن هارون السلمي الواسطي", "kunya": "أبو خالد", "grade": "ثقة"}
+    b = {"name": "يزيد بن هارون بن زاذان السلمي الواسطي", "kunya": "أبو خالد", "grade": "ثقة"}
+    assert not comp.vetoes(a["name"], b["name"])
+    assert collapse_duplicates([a, b], company=comp)[1] == 1                       # mix: merged
+    assert collapse_duplicates([a, b], company=comp, require_confirm=True)[1] == 0  # strict: not

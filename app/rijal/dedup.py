@@ -20,7 +20,9 @@ critics' opinions (the double-opinion), and the authority's grade.
 
 from __future__ import annotations
 
+import sqlite3
 from collections import defaultdict
+from pathlib import Path
 
 from app.parsing.normalize import normalize_for_search
 from app.rijal.grades import classify
@@ -170,11 +172,71 @@ def _pick_primary(cluster: list[int], records: list[dict]) -> int:
     return max(cluster, key=key)
 
 
-def collapse_duplicates(records: list[dict], *, window: int = 20) -> tuple[list[dict], int]:
+class CorpusCompany:
+    """The narrator network (``narrators.db``) used as a same-man oracle: a name-proposed merge is
+    *confirmed* only when the two entries map to the same graph node (or share a chain circle), and
+    *vetoed* when the corpus cites them with disjoint company. Built from the PREVIOUS run's graph
+    (``build_rijal`` precedes ``build_graph``); the first ever run simply has no graph → name-only."""
+
+    def __init__(self, db_path: str | Path) -> None:
+        con = sqlite3.connect(str(db_path))
+        self._by_key: dict[tuple[str, ...], list[tuple[int, frozenset, frozenset, int]]] = defaultdict(list)
+        for nid, name, freq in con.execute("SELECT id, name, freq FROM narrator"):
+            toks = tokens(name or "")
+            self._by_key[ident_key(name or "")].append((nid, frozenset(toks), frozenset(nisbas(toks)), freq))
+        self._adj: dict[int, set[int]] = defaultdict(set)
+        for teacher, student in con.execute("SELECT teacher, student FROM link"):
+            self._adj[teacher].add(student)
+            self._adj[student].add(teacher)
+        con.close()
+
+    def _node_for(self, name: str) -> int | None:
+        """The graph node that best cites this رجال name: same ism+father, a compatible nisba,
+        most token-overlap then most-narrated. ``None`` when the corpus doesn't carry him."""
+        toks = tokens(name)
+        nis = nisbas(toks)
+        best, best_score = None, (-1, -1)
+        for nid, ntoks, nnis, freq in self._by_key.get(ident_key(name), ()):
+            if nis and nnis and nis.isdisjoint(nnis):
+                continue                                   # the node carries a conflicting nisba
+            score = (len(ntoks & toks), freq)
+            if score > best_score:
+                best, best_score = nid, score
+        return best
+
+    def confirms(self, name_a: str, name_b: str) -> bool:
+        """Does the corpus *positively* agree the two are one man? Same node, or ≥2 shared chain
+        associates. ``False`` on disjoint company OR when either man is absent from the graph —
+        used by the strict policy, which merges only what the network confirms."""
+        a, b = self._node_for(name_a), self._node_for(name_b)
+        if a is None or b is None:
+            return False
+        return a == b or len(self._adj[a] & self._adj[b]) >= 2
+
+    def vetoes(self, name_a: str, name_b: str) -> bool:
+        """A *positive contradiction*: both men are in the graph, as distinct nodes, with **disjoint**
+        company (different circles). Absence of evidence is NOT a veto — used by the mix policy,
+        which trusts the name unless the corpus proves the two are different men."""
+        a, b = self._node_for(name_a), self._node_for(name_b)
+        if a is None or b is None or a == b:
+            return False
+        return bool(self._adj[a]) and bool(self._adj[b]) and self._adj[a].isdisjoint(self._adj[b])
+
+
+def collapse_duplicates(
+    records: list[dict], *, window: int = 20,
+    company: "CorpusCompany | None" = None, require_confirm: bool = False,
+) -> tuple[list[dict], int]:
     """Return ``(deduped_records, removed)`` — same-man duplicates collapsed into one entry.
 
-    Groups by ``ident_key``, unions entries by :func:`same_man` (transitively), and merges each
-    cluster into its primary. Order is otherwise preserved."""
+    Groups by ``ident_key`` and unions entries by :func:`same_man` (transitively). A
+    :class:`CorpusCompany`, when supplied, gates each name-proposed merge against the chain network:
+
+    * **mix** (default, ``require_confirm=False``) — the name proposes, the corpus only **vetoes** a
+      merge it positively contradicts (disjoint company); absent men are trusted to the name.
+    * **strict** (``require_confirm=True``) — merge only what the corpus **confirms** (same company).
+
+    With no company it is name-only. Order is otherwise preserved."""
     groups: dict[tuple[str, ...], list[int]] = defaultdict(list)
     for i, rec in enumerate(records):
         groups[ident_key(rec.get("name", ""))].append(i)
@@ -194,8 +256,14 @@ def collapse_duplicates(records: list[dict], *, window: int = 20) -> tuple[list[
         for p in range(len(idxs)):
             for q in range(p + 1, len(idxs)):
                 i, j = idxs[p], idxs[q]
-                if same_man(records[i], records[j], window=window):
-                    parent[find(i)] = find(j)
+                if not same_man(records[i], records[j], window=window):
+                    continue
+                if company is not None:
+                    na, nb = records[i]["name"], records[j]["name"]
+                    ok = company.confirms(na, nb) if require_confirm else not company.vetoes(na, nb)
+                    if not ok:
+                        continue
+                parent[find(i)] = find(j)
 
         clusters: dict[int, list[int]] = defaultdict(list)
         for i in idxs:
