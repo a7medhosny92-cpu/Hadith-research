@@ -13,6 +13,62 @@ an ephemeral container; the **code** is the source of truth, this file is the **
 > (شيخ→students / تلميذ→teachers) as a **hard constraint with hold-by-default** — which is both the
 > certainty discipline and the «company» method.
 
+## وصف المشكلة بالعربية — the problem, in Arabic
+
+**أولاً: أصل المشكلة — تمييز الراوي المهمَل والمشترك في الإسناد.**
+كثيرٌ من الأسانيد يُذكَر فيها الراوي باسمٍ **مجرَّدٍ ناقصٍ** لا يكفي لتعيينه؛ كأن يقول المحدِّث:
+«حدثنا محمد» أو «عن يونس» أو «عن عبد الله»، وفي طبقة شيوخه أكثرُ من رجلٍ بهذا الاسم. هذا هو **الراوي
+المهمَل**، وهو من باب **المتفق والمفترق** في علوم الحديث. والسؤال الجوهري: **أيُّ «يونس» هو؟** فإن لم
+نُعيِّنه لم نعرف حاله، ولم يصحَّ الحكم على الإسناد.
+
+**ثانياً: لماذا هي مشكلةٌ خطيرة.** الحكم على الإسناد (صحيح / حسن / ضعيف) مبنيٌّ على **حال كلِّ راوٍ**
+(عدالته وضبطه) و**اتصال السند**. فإذا أخطأنا في تعيين راوٍ مهمل نسبنا إليه جرحاً أو توثيقاً ليس له
+(نأخذ درجة **رجلٍ آخر** يشاركه الاسم)، فيختلّ الحكم: نصحِّح ما حقُّه التضعيف، أو نضعِّف ما هو صحيح.
+وهذا أخطر من الخطأ الظاهر، لأنه **خطأٌ خفيٌّ صامت**.
+
+**ثالثاً: القرائن الصحيحة للتعيين** هي قرائن الإسناد نفسه، على منهج المحدِّثين: **«يُميَّز المهمَل
+بشيخه وتلميذه وطبقته»**:
+- **الشيخ والتلميذ (الصُّحبة):** عمَّن روى ومَن روى عنه؟ فلكلِّ راوٍ شيوخٌ وتلاميذُ معروفون.
+- **الطبقة (الزمن):** الشيخُ يتقدَّم تلميذَه؛ فموضعُ الراوي في السند يحدِّد جيله، ويُخرِج مَن كان من
+  طبقةٍ أخرى.
+- **اسمه المكتمل** إن ورد مُسمًّى في موضعٍ آخر (تمييز المهمل بالمسمَّى، من تَكرار النصوص).
+ولا يصحُّ الاعتماد على **الدرجة** في التمييز: الجرح والتعديل يُخبر عن **قيمة** الرجل لا عن **عَينه**.
+
+**رابعاً: الخلل الدقيق الذي اكتشفناه (لُبُّ المشكلة).** نظامنا، حين يميِّز بـ«الصُّحبة»، يعتمد على
+**تشابهٍ عامٍّ مبهمٍ** بين الأسماء المحيطة (تقاطُع كلماتٍ)، لا على **العلاقة المعيَّنة** (هل هذا
+المرشَّح تلميذٌ لذلك الشيخ **بعينه**؟). ومثاله الجليّ: في «… عن **يونس** عن **الزهري** …»، فـ«يونس»
+المرويُّ عن الزهري هو **يونس بن يزيد الأيلي**؛ لكنّ النظام عيَّنه **بثقةٍ** على أنه **يونس بن عبيد**
+(بصريٌّ يروي عن الحسن، لا عن الزهري) — **تعيينٌ واثقٌ خاطئ بلا تنبيه**. والأعجب: **كلَّما زاد سياقُ
+السند زاد الخطأ**، لأن التشابه العام يُرجِّح بالمصادفة رجلاً غيرَ مقصود؛ والرجلُ الصحيح (الأيلي) كان
+حاضراً بين المرشَّحين لكنه خَسِر أمام «الضجيج».
+
+**خامساً: ما نطلبه — اليقين لا الترجيح الظنّي.** نُعيِّن الراوي **فقط** إذا دلّت عليه قرينةٌ قاطعة:
+**نصُّ المصدر** (تهذيب الكمال «روى عن فلان»، أو الغسّاني في «تقييد المهمل» على رجال الصحيحين)، أو
+**الإسقاط** (لم يبقَ بعد تطبيق القرائن إلا رجلٌ واحدٌ ممكن)؛ وما عدا ذلك **نتوقّف فيه** (نعرض
+المرشَّحين ولا نجزم). والإصلاح الجوهري: أن يكون التمييز بـ**صُحبة الجار المعيَّن** (شيخِه أو تلميذِه
+بعينه) **قيداً صارماً**، لا تشابهاً عامًّا.
+
+## The audit flags «أعلام التدقيق» (P / S / W / A)
+
+`scripts/audit_isnad.py` scans every chain and raises four flags into `data/audit.json` (the
+«التدقيق» review tab). Each is a **candidate error for a human to verify**, never a verdict:
+
+| flag | label (Arabic) | what it means | when it fires |
+|---|---|---|---|
+| **P** | الحكم على النبيّ ﷺ كراوٍ | the Prophet ﷺ was matched/graded as if he were a narrator — must **never** happen | whenever a Prophet node carries a rijal grade |
+| **S** | «صحابي» في غير آخر السند | a **Companion** graded **mid-chain** — a صحابي belongs in the last 1–2 links, so a mid-chain match is almost always a **homonym mismatch** | only when the match is *certain* |
+| **W** | اسمٌ كاملٌ حُكم له بالترك/الكذب | a **fully-named** narrator (≥3 tokens) graded **متروك/متهم/كذاب/وضاع** — usually a homonym mismatch condemning the wrong man | only when the match is *certain* |
+| **A** | مطابقةٌ مشتركة (مُلتبسة) | the bare name matches **more than one** man (**مشترك**) — the core ambiguity this study is about | on **any** ambiguous match |
+
+Gate: **S and W fire only when the identification is "certain"** (the match is unambiguous, or its
+tied candidates agree on the grade, `grade_agreed`); an ambiguous-and-grade-disagreeing case is
+routed to **A** («مشترك»), never to a confident صحابي/متروك flag.
+
+> **Why these flags miss the dangerous case.** The silent confident mis-identification above
+> («يونس عن الزهري» → `يونس بن عبيد`) is **not** P (not the Prophet), **not** A (`ambiguous=False`),
+> and **not** W (يونس بن عبيد is ثقة, not متروك). So **none** of P/S/W/A catches it — which is exactly
+> why this class of error is the most dangerous, and why the `canon._pick` fix matters most.
+
 ## Setup (what was run remotely)
 - Books (uploaded): **1284** Bukhārī, **1727** Muslim (chains); **8609** تقريب + **2171** الكاشف
   (grades); **3722** تهذيب الكمال (network). No شروح, no semantic (irrelevant to A).
