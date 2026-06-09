@@ -110,14 +110,30 @@ def narrator_sources(grade: dict | None) -> list[dict]:
 
 def narrator_dossier(name: str, graph, rijal: RijalIndex, *, limit: int | None = None) -> dict | None:
     """The راوٍ card: profile + grade + شيوخ/تلاميذ + sources. ``None`` if unknown.
-    ``limit=None`` returns **all** شيوخ/تلاميذ (no cap)."""
-    node = graph.resolve(name) if graph is not None else None
-    if node is None:
-        return None
-    # A synthetic «father/grandfather of X» node is a real but *unnamed* link — never
-    # grade it (it would otherwise be mis-matched to X himself in the رijال database).
-    grade = None if is_unnamed_kin(node.name) else rijal.lookup(node.name)
-    grade_d = grade.to_dict() if grade else None
+    ``limit=None`` returns **all** شيوخ/تلاميذ (no cap).
+
+    تمييز المهمل in the UI: a **مشترك** name (عبد الله / محمد match thousands of men) is NEVER
+    silently resolved to one man with a generation-mixed network (e.g. «عبد الله» graded صحابي
+    ابن عمر but with شعبة, who died 90 years later, among his شيوخ). Instead it returns the
+    **candidate list** so the user picks the intended narrator — never a confident guess."""
+    # disambiguation first: if the name maps to several known men, return them ALL (max_results=None
+    # bypasses the chain-resolution cap — «عمر» really does have 134 bearers, and we want to show them).
+    cands = list({c.name: c for c in rijal.candidates(name, max_results=None)}.values())
+    if len(cands) > 1:
+        cands.sort(key=lambda c: (c.category != "صحابي", c.death_year is None,
+                                  c.death_year or 9999, c.name))     # Companions first, then by era
+        shown = cands[:120]
+        return {
+            "kind": "ambiguous",
+            "name": name,
+            "count": len(cands),
+            "truncated": len(cands) > len(shown),
+            "candidates": [
+                {"name": c.name, "grade": c.category,
+                 "death_year": c.death_year, "kunya": c.kunya}
+                for c in shown
+            ],
+        }
 
     def _graded(people: list[dict]) -> list[dict]:
         for p in people:                      # tag each neighbour with its grade (for the graph view)
@@ -125,13 +141,27 @@ def narrator_dossier(name: str, graph, rijal: RijalIndex, *, limit: int | None =
             p["grade"] = m.entry.category if m else None
         return people
 
-    teachers = _graded(graph.teachers(node.name, limit=limit))
-    students = _graded(graph.students(node.name, limit=limit))
+    node = graph.resolve(name) if graph is not None else None
+    if node is not None:
+        # A synthetic «father/grandfather of X» node is a real but *unnamed* link — never
+        # grade it (it would otherwise be mis-matched to X himself in the رijال database).
+        display = node.name
+        match = None if is_unnamed_kin(node.name) else rijal.lookup(node.name)
+        teachers = _graded(graph.teachers(node.name, limit=limit))
+        students = _graded(graph.students(node.name, limit=limit))
+    else:
+        # no graph node (a uniquely-named narrator the chains never cite by this exact form,
+        # e.g. a picked candidate) → still show his grade card, just without a network.
+        match = rijal.lookup(name)
+        if match is None:
+            return None
+        display, teachers, students = match.entry.name, [], []
+    grade_d = match.to_dict() if match else None
     return {
         "kind": "person",
-        "name": node.name,
+        "name": display,
         "grade": grade_d,
-        "summary": narrator_summary(node.name, grade_d, teachers, students),
+        "summary": narrator_summary(display, grade_d, teachers, students),
         "sources": narrator_sources(grade_d),
         "teachers": teachers,
         "students": students,

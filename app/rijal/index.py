@@ -280,15 +280,19 @@ class RijalIndex:
 
         return None
 
-    def candidates(self, name: str) -> list[RijalEntry]:
+    def candidates(self, name: str, *, max_results: int | None = 40) -> list[RijalEntry]:
         """The distinct known men who could be ``name`` — the homonym set for context-based
         تمييز المهمل («the chain before the name»).
 
         Unlike :meth:`lookup`, which collapses to one best answer, this returns *all* the
         real namesakes — the most-specific contained name(s) AND every best-covering partial
         (fuller-named) homonym — so the chain's company can choose between them, e.g. «محمد
-        بن بشر» [متروك] vs «محمد بن بشر العبدي» [ثقة]. Capped: a bare ism with dozens of
-        bearers is too generic for the chain to resolve, so we return nothing then.
+        بن بشر» [متروك] vs «محمد بن بشر العبدي» [ثقة].
+
+        ``max_results`` caps the set: with the default 40, a bare ism with dozens of bearers is
+        too generic for a *chain* to resolve, so we return nothing then (the caller holds). Pass
+        ``max_results=None`` to get the **full** homonym list regardless — for the disambiguation
+        UI, where showing all 134 «عمر» is exactly the point (تمييز المهمل left to the user).
         """
         query_seq = _clean_seq(name)
         query = set(query_seq)
@@ -325,7 +329,9 @@ class RijalIndex:
             for c, pref, e in partial:
                 if c == top_cov and (pref or not any_prefix):
                     take(e)
-        return out if len(out) <= 40 else []
+        if max_results is not None and len(out) > max_results:
+            return []
+        return out
 
 
 def _read_jsonl(path: Path) -> Iterator[dict]:

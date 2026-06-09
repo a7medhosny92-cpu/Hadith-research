@@ -140,6 +140,8 @@
     border-bottom:2px solid var(--gold);padding-bottom:8px}
   .rawi-item{display:flex;justify-content:space-between;gap:10px;align-items:center;
     padding:8px 4px;border-bottom:1px solid var(--line);font-size:1.08rem}
+  .rawi-pick{cursor:pointer;border-radius:8px;padding:8px 8px}
+  .rawi-pick:hover{background:var(--bg)}
   .rawi-summary{margin-top:10px;color:#3a3328;line-height:2.1;font-size:1.08rem}
   .var-row{border-bottom:1px solid var(--line)}
   .var-row .rawi-item{border-bottom:none}
@@ -737,7 +739,24 @@ function rawiList(title, arr){
   ).join("");
   return `<div class="rawi-col"><h3>${title} (${arr.length})</h3>${rows}</div>`;
 }
+// تمييز المهمل in the UI: a مشترك name (عبد الله / محمد / عمر) matches many men — we never pick
+// one (which would show a generation-mixed network: عمر الصحابي with a شيخ who died 180 years
+// later). The user picks the intended narrator from the candidate list; each row re-runs the search.
+function renderCandidates(d){
+  const more = d.truncated ? ` <span class="r-era">(عُرض أوّل ${d.candidates.length} — ضيّق البحث بإضافة اسم الأب)</span>` : "";
+  const head = `<div class="card"><div class="rawi-name">${esc(d.name)} <span class="grade g-other">مشترك</span></div>`
+    + `<div class="rawi-summary">هذا الاسم مشتركٌ بين ${d.count} راويًا في القاعدة${more} — اخترِ المقصود (لا نختار عنك):</div></div>`;
+  const rows = d.candidates.map(c => {
+    const dy = c.death_year ? ` <span class="r-era">· ت ${c.death_year}هـ</span>` : "";
+    const ku = c.kunya ? ` <span class="r-era">· ${esc(c.kunya)}</span>` : "";
+    const g = c.grade ? `<span class="grade ${rijalClass(c.grade)}">${esc(c.grade)}</span>` : "";
+    return `<div class="rawi-item rawi-pick" data-pick="${esc(c.name)}" role="button" tabindex="0">`
+      + `<span>${esc(c.name)}${ku}${dy}</span>${g}</div>`;
+  }).join("");
+  return head + `<div class="rawi-col">${rows}</div>`;
+}
 function renderNarrator(d){
+  if(d.kind === "ambiguous"){ results.innerHTML = renderCandidates(d); return; }
   const v = d.grade && (d.grade.verdict || d.grade.grade);
   const badge = isProphet(d.name) ? `<span class="grade g-sahih">مصدر الحديث ﷺ</span>`
     : v ? `<span class="grade ${rijalClass(v)}">${esc(v)}</span>` : "";
@@ -815,6 +834,7 @@ function _netEdge(x1, y1, x2, y2, count){
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="net-edge" stroke-width="${w}"></line>`;
 }
 function renderNetwork(d){
+  if(d.kind === "ambiguous"){ results.innerHTML = renderCandidates(d); return; }
   const teachers = d.teachers || [];          // ALL شيوخ — no cap
   const students = d.students || [];          // ALL تلاميذ — no cap
   const usable = Math.max(680, (results.clientWidth || 760) - 48);
@@ -1387,6 +1407,14 @@ results.addEventListener("click", e => {
   if(e.target.closest(".net-back")){ netBack(); return; }
   const node = e.target.closest("[data-nav]");
   if(node) navigateNet(node.getAttribute("data-nav"));
+});
+
+// A candidate row in a «مشترك» disambiguation list → re-run on that specific narrator (same tab).
+results.addEventListener("click", e => {
+  const pick = e.target.closest(".rawi-pick");
+  if(!pick) return;
+  q.value = pick.getAttribute("data-pick");
+  run();
 });
 
 // «تتبّع تخريجه ⟶» on a hadith card → jump to the تخريج tab and trace that matn.
