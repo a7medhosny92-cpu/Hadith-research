@@ -157,6 +157,20 @@ student, generation. The three signals = that triangle.
   rules), **AR-Sanad 280K** (narrator-disambiguation dataset), **SPADE on Bukhārī** (narrator-network
   mining).
 
+## Live cases (found by inspecting the running app)
+- **أبو ذر الغفاري not recognised as صحابي.** He is cited by his **kunya** «أبي ذر», which is **مشترك**:
+  it matches جندب بن جنادة الغفاري (صحابي — the Companion), عمر بن ذر الكوفي (ثقة), منير الأردني (ضعيف),
+  and a **false** candidate خالد بن وهبان whose kunya «أبي ذر» was wrongly extracted from his name
+  «… ابن خالة أبي ذر» («son of Abū Dharr's aunt»). The candidates disagree on grade → held (or, on the
+  full DB, a confident wrong ثقة pick). **Fix:** resolve by **position/طبقة** (the last link is the
+  Companion) + company, and fix the kunya extraction («خالة أبي ذر» is not a kunya). *(open)*
+- **«أنس بن مالك» merged with «مالك بن أنس» in the graph.** The graph node key was order-independent
+  (`sorted(name_tokens)`), so the Companion (al-Zuhrī's **teacher**) and Imam Mālik (his **student**)
+  — anagrams in token space — collapsed into one node, and the Imam's student-edge surfaced the
+  Companion among al-Zuhrī's تلاميذ. **FIXED:** `app/rijal/graph.py::node_key` now preserves token
+  order; verified the two resolve to distinct nodes and land in the correct شيوخ/تلاميذ lists. This
+  also de-noises the company signal that `canon._pick` consumes.
+
 ## Next steps
 1. **Rewrite `canon._pick`** to neighbour-specific hard evidence + hold-by-default; re-measure the
    silent-mis-identification rate and the held resolution (precision-first).
