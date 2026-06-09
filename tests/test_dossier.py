@@ -7,10 +7,11 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.qa.intent import detect_intent
+from app.rijal import RijalIndex
 from app.rijal.graph import NarratorGraph
 from app.routers.ask import get_sharh_index
 from app.routers.search import get_embedder, get_index, get_vectors
-from app.routers.verify_isnad import get_graph
+from app.routers.verify_isnad import get_graph, get_rijal
 from app.search import HadithIndex, SharhIndex
 
 H = {
@@ -43,6 +44,9 @@ def client():
     app.dependency_overrides[get_graph] = lambda: graph
     app.dependency_overrides[get_vectors] = lambda: None
     app.dependency_overrides[get_embedder] = lambda: None
+    # a controlled rijal where «أبو هريرة» is unambiguous → the person card (not disambiguation)
+    app.dependency_overrides[get_rijal] = lambda: RijalIndex(
+        [{"name": "أبو هريرة الدوسي", "kunya": "أبو هريرة", "grade": "صحابي"}])
     yield TestClient(app)
     app.dependency_overrides.clear()
 
