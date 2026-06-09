@@ -64,6 +64,18 @@ def get_canon() -> Canonicalizer:
     return _canonicalizer()
 
 
+@lru_cache(maxsize=1)
+def _muhmal() -> dict[str, str]:
+    """The تمييز المهمل map (data/muhmal.json, built by build_graph): a (تلميذ, شيخ) context → the
+    narrator's full form, so a bare name the corpus names in full elsewhere is identified."""
+    from app.rijal.muhmal import load_map
+    return load_map(get_settings().data_dir / "muhmal.json")
+
+
+def get_muhmal() -> dict[str, str]:
+    return _muhmal()
+
+
 @router.get("/verify-isnad")
 def verify_isnad(
     hadith_id: int | None = Query(None, description="indexed hadith whose isnad to analyse"),
@@ -72,6 +84,7 @@ def verify_isnad(
     rijal: RijalIndex = Depends(get_rijal),
     graph: NarratorGraph | None = Depends(get_graph),
     canon: Canonicalizer = Depends(get_canon),
+    muhmal: dict[str, str] = Depends(get_muhmal),
 ) -> dict:
     if hadith_id is not None:
         hit = index.get(hadith_id)
@@ -83,8 +96,9 @@ def verify_isnad(
     else:
         raise HTTPException(status_code=422, detail="provide hadith_id or isnad")
 
-    # canon resolves a shared name from the chain's company before grading (تمييز المهمل)
-    analysis = analyze_isnad(chain, rijal=rijal, canon=canon).to_dict()
+    # تمييز المهمل (the corpus names the bare one in full elsewhere) then canon's company resolve
+    # a shared name from the chain it sits in, before grading.
+    analysis = analyze_isnad(chain, rijal=rijal, canon=canon, muhmal=muhmal).to_dict()
     result = {"source": source, "analysis": analysis}
     if graph is not None and graph.count():
         result["continuity"] = continuity(analysis["narrators"], graph)
