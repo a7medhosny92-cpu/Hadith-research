@@ -98,6 +98,22 @@ def test_death_year_not_confused_with_age():
     assert _death_year("ثقة مات في رمضان ١٧١") == 171                        # bare digit, no «سنة»
 
 
+def test_death_year_century_recovered_from_tabaqa():
+    """تقريب abbreviates the year by dropping the hundreds («من العاشرة مات سنة ست وثلاثين» = 236,
+    not 36); the century is recovered from the طبقة, while Companions keep their genuine small years
+    and an explicit-hundreds year is untouched. A ×100-off year wrecks the same-man dedup."""
+    from app.parsing.rijal_extract import _entry_to_record
+
+    def dy(body):
+        r = _entry_to_record(1, body, "تقريب التهذيب")
+        return (r or {}).get("death_year")
+
+    assert dy("أحمد بن خالد الموصلي صدوق من العاشرة مات سنة ست وثلاثين") == 236
+    assert dy("فلان بن مرة الحراني ضعيف من التاسعة مات سنة ثماني عشرة") == 218
+    assert dy("أسامة بن زيد بن حارثة صحابي مات سنة أربع وخمسين") == 54          # Companion: untouched
+    assert dy("محمد بن إسماعيل البخاري إمام من الحادية عشرة مات سنة ست وخمسين ومائتين") == 256
+
+
 def test_lookup_resolves_isnad_names():
     idx = RijalIndex(_records())
     assert idx.lookup("جابر بن يزيد الجعفي").entry.category == "ضعيف"
