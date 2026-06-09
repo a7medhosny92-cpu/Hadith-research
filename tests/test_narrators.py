@@ -6,9 +6,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.rijal import RijalIndex
 from app.rijal.graph import NarratorGraph
 from app.routers.search import get_index
-from app.routers.verify_isnad import get_graph
+from app.routers.verify_isnad import get_graph, get_rijal
 from app.search import HadithIndex
 
 
@@ -74,6 +75,8 @@ def test_dossier_grades_neighbours():
 def client(graph) -> TestClient:
     app.dependency_overrides[get_graph] = lambda: graph
     app.dependency_overrides[get_index] = lambda: HadithIndex()
+    # a controlled rijal where «مالك» is unambiguous → the person card path (not disambiguation)
+    app.dependency_overrides[get_rijal] = lambda: RijalIndex([{"name": "مالك بن أنس", "grade": "ثقة"}])
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -83,6 +86,23 @@ def test_api_narrator(client):
     assert "نافع" in {t["name"] for t in body["teachers"]}
     students = {s["name"] for s in body["students"]}
     assert {"قتيبة", "يحيى بن يحيى"} <= students
+
+
+def test_api_narrator_ambiguous(graph):
+    """A مشترك name returns ALL candidates (تمييز المهمل in the UI), never one conflated card —
+    so «سفيان» does not silently become one man with a generation-mixed network."""
+    app.dependency_overrides[get_graph] = lambda: graph
+    app.dependency_overrides[get_index] = lambda: HadithIndex()
+    app.dependency_overrides[get_rijal] = lambda: RijalIndex([
+        {"name": "سفيان الثوري", "grade": "ثقة"},
+        {"name": "سفيان بن عيينة", "grade": "ثقة"},
+    ])
+    try:
+        body = TestClient(app).get("/narrator", params={"name": "سفيان"}).json()
+        assert body["kind"] == "ambiguous" and body["count"] == 2
+        assert {c["name"] for c in body["candidates"]} == {"سفيان الثوري", "سفيان بن عيينة"}
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_api_narrator_unknown(client):
