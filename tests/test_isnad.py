@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.qa.isnad import analyze_isnad, overall_ruling
+from app.qa.isnad import analyze_isnad, continuity, overall_ruling
 from app.routers.search import get_index
 from app.search import HadithIndex
 
@@ -192,3 +192,71 @@ def test_penultimate_companion_from_companion_kept():
     anas = next(n for n in analyze_isnad("حدثنا قتيبة عن أنس عن أبي بكر", rijal=rijal).narrators
                 if n["name"] == "أنس")
     assert anas["rijal"]["grade"] == "صحابي"
+
+
+# ── terminal-صحابي is gated on reaching the Prophet (C1: no مقطوع false-promotion) ─────────────
+_ASWAD = [
+    {"name": "الأسود بن يزيد النخعي", "grade": "ثقة"},      # تابعي — the real الأسود النخعي
+    {"name": "الأسود بن سريع التميمي", "grade": "صحابي"},   # a صحابي homonym
+]
+
+
+def test_terminal_tabii_on_maqtu_not_forced_to_sahabi():
+    """When the chain does NOT reach the Prophet (موقوف/مقطوع), the terminal need not be a Companion:
+    a تابعي giving his own مقطوع (الأسود النخعي الثقة) must NOT be forced to a صحابي homonym
+    (الأسود بن سريع). He is held as ambiguous — never confidently mis-identified."""
+    from app.rijal.index import RijalIndex
+    a = analyze_isnad("حدثنا فلان عن إبراهيم عن الأسود", rijal=RijalIndex(_ASWAD))
+    assert not a.reaches_prophet
+    last = a.narrators[-1]["rijal"]
+    assert last["name"] != "الأسود بن سريع التميمي"   # not the forced صحابي
+    assert last["ambiguous"]                           # honestly held, not a confident verdict
+
+
+def test_terminal_forced_to_sahabi_only_when_reaches_prophet():
+    """The mirror: narrating DIRECTLY from the Prophet ﷺ makes the man a Companion, so it IS resolved
+    to the صحابي homonym (الأسود بن سريع), not the later تابعي الثقة."""
+    from app.rijal.index import RijalIndex
+    a = analyze_isnad("حدثنا فلان عن الأسود عن النبي صلى الله عليه وسلم", rijal=RijalIndex(_ASWAD))
+    assert a.reaches_prophet
+    penult = a.narrators[-2]["rijal"]
+    assert penult["grade"] == "صحابي" and penult["name"] == "الأسود بن سريع التميمي"
+
+
+# ── chain/matn boundaries: back-reference, hadith number, ramz, action verbs ───────────────────
+def test_back_reference_isnad_ends_the_chain():
+    """«… بهذا الإسناد» abbreviates a previously-given chain → the matn follows; «الإسناد» must not
+    become a bogus narrator node."""
+    names = [n["name"] for n in analyze_isnad("حدثنا قتيبة بهذا الإسناد قال إنما الأعمال").narrators]
+    assert names == ["قتيبة"]
+    assert not any("الإسناد" in n or "بهذا" in n for n in names)
+
+
+def test_hadith_number_and_ramz_are_not_narrators():
+    """A cross-reference marker («م - ٢٣٤٥») or a lone ramz letter is never a narrator name."""
+    names = [n["name"] for n in analyze_isnad("حدثنا قتيبة م - ٢٣٤٥ عن مالك عن نافع").narrators]
+    assert names == ["قتيبة", "مالك", "نافع"]
+
+
+def test_action_verb_opens_matn_but_yuhaddith_keeps_the_chain():
+    # «يخطب الناس» opens the narrated scene → the chain ends
+    assert [n["name"] for n in analyze_isnad("عن ابن عمر يخطب الناس فقال").narrators] == ["ابن عمر"]
+    # «يحدّث عن أبيه» is transmission, not matn → the chain continues
+    names = [n["name"] for n in analyze_isnad("سمعت سالما يحدث عن أبيه عن جده").narrators]
+    assert "أبيه" in names and "جده" in names
+
+
+def test_tahwil_seam_is_not_a_link():
+    """تحويل (ح) switches routes: the man before the seam and the one after are on different chains,
+    so continuity must not read a تلميذ→شيخ link across it (شعبة→محمد is bogus)."""
+    a = analyze_isnad("حدثنا أبو بكر عن شعبة ح وحدثنا محمد عن منصور")
+    assert a.has_tahwil
+    assert next(n for n in a.narrators if n["name"] == "محمد").get("route_start")
+
+    class _G:
+        def link_weight(self, student, teacher):
+            return 0
+
+    pairs = [(l["from"], l["to"]) for l in continuity(a.narrators, _G())["links"]]
+    assert ("شعبة", "محمد") not in pairs        # the ح seam is not a link
+    assert ("محمد", "منصور") in pairs           # the route-2 link is intact

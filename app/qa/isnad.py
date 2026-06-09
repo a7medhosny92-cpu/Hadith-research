@@ -31,13 +31,21 @@ _VIA: dict[str, str] = {
     "سمعت": "سماع", "سمعنا": "سماع", "سمع": "سماع", "سمعه": "سماع",
     "عن": "عنعنة", "عنه": "عنعنة",
 }
-# Connective words that are not narrator names.
-_SKIP = {"قال", "قالا", "قالوا", "يعني", "قالت", "ح"}
+# Connective words that are not narrator names. «بهذا/بهذه» introduces a back-reference
+# («بهذا الإسناد») — dropped so «الإسناد» (a hard matn marker below) cleanly ends the chain.
+_SKIP = {"قال", "قالا", "قالوا", "يعني", "قالت", "ح", "بهذا", "بهذه"}
 # Matn-start markers: once the isnad reaches one of these (after a narrator) the matn
 # has begun and the chain ends. «قال/قالت» are *soft* — a boundary only when NOT followed
 # by a transmission verb (… قال حدثنا … keeps going); the rest always begin the matn.
-_MATN_HARD = {"يقول", "تقول", "مرفوعا", "رفعه", "يرفعه", "نحوه", "مثله", "بنحوه", "بمثله", "فقال"}
+_MATN_HARD = {"يقول", "تقول", "مرفوعا", "رفعه", "يرفعه", "نحوه", "مثله", "بنحوه", "بمثله", "فقال",
+              # back-reference to a previously-given chain («… بهذا الإسناد / بإسناده / بسنده»):
+              # the isnad is abbreviated here, so the report (matn) follows — stop the chain.
+              "الاسناد", "اسناده", "باسناده", "بسنده", "باسناد"}
 _MATN_SOFT = {"قال", "قالت"}
+# Action verbs that open a narrated scene («كان رسول الله ﷺ يخطب / يصلّي / يدعو …», «سمعته
+# يحدّث …»): treated like a soft boundary — the matn begins UNLESS a transmission verb
+# follows (… يحدّث عن أبيه … keeps the chain), so a real «سمعته يحدّث عن فلان» is never truncated.
+_MATN_VERB = {"يخطب", "يصلي", "يدعو", "يقرا", "يكبر", "يامر", "يحدث", "يذكر", "يصنع", "يفعل"}
 # «أنّ / أنّه / أنّها» opens the report (matn) — «… عن ابن عمر أنّ رسول الله ﷺ قال …».
 # If its subject is the Prophet the chain is marfūʿ and he is the terminal narrator;
 # otherwise the report has begun and the chain ends. (Without this, «أن رسول الله» glued
@@ -124,11 +132,20 @@ def analyze_isnad(
     via: str | None = None
     buf: list[str] = []
     has_tahwil = False
+    # Indices that begin a NEW route after a تحويل (ح). The narrator before a ح seam and the
+    # one after it belong to different chains — they are neither a real تلميذ→شيخ link nor each
+    # other's disambiguation context, so these indices are excluded from both below.
+    route_starts: set[int] = set()
+    pending_break = False
 
     def flush() -> bool:
+        nonlocal pending_break
         name = " ".join(buf).strip(" -،")
         if name:
             narrators.append(Narrator(name=name, via=via or "—"))
+            if pending_break:
+                route_starts.add(len(narrators) - 1)
+                pending_break = False
             return is_prophet(name)   # the Prophet is terminal — nothing narrates from him
         return False
 
@@ -137,7 +154,13 @@ def analyze_isnad(
         folded = normalize_for_search(token)
         nxt = normalize_for_search(tokens[i + 1]) if i + 1 < len(tokens) else ""
         if folded == "ح":
-            has_tahwil = True  # تحويل: a standalone ح marks a route switch
+            has_tahwil = True       # تحويل: a standalone ح switches to another route, so
+            flush()                 # finalise this route's last narrator and mark the next one
+            pending_break, buf = True, []   # as a new route (the ح seam isn't a real link)
+            continue
+        # a hadith number («م - ٢٣٤٥»), a lone ramz letter (خ م د ت س ق …) or bare punctuation
+        # is never a narrator name — drop it before it glues onto the surrounding name.
+        if not folded or folded.isdigit() or len(folded) == 1:
             continue
         # accept a leading و (وحدثنا، وعن، وأخبرنا …)
         conn = folded if folded in _VIA else (
@@ -160,10 +183,11 @@ def analyze_isnad(
             break
         # matn boundary: the isnad ends where the report (matn) begins
         nxt_is_via = nxt in _VIA or (nxt[:1] == "و" and nxt[1:] in _VIA)
-        if folded in _MATN_HARD or (folded in _MATN_SOFT and not nxt_is_via):
+        soft = folded in _MATN_SOFT or folded in _MATN_VERB
+        if folded in _MATN_HARD or (soft and not nxt_is_via):
             flush()
             break
-        if folded in _MATN_SOFT:   # «قال حدثنا …» — connective, not the matn; drop it
+        if soft:   # «قال حدثنا …» / «سمعته يحدّث عن …» — connective, not the matn; drop it
             continue
         # the Prophet is the terminal narrator: once the buffer is the Prophet and the
         # next token isn't part of the eulogy, the matn has begun
@@ -197,6 +221,8 @@ def analyze_isnad(
         mubham = (not prophet) and _is_mubham(narrator.name)
         record["is_prophet"] = prophet
         record["mubham"] = mubham
+        if i in route_starts:
+            record["route_start"] = True   # begins a new route after a ح — no link from the prior man
         if mubham:
             mubham_count += 1
         if rijal is not None:
@@ -209,7 +235,10 @@ def analyze_isnad(
                 # تمييز المهمل: a bare name whose (تلميذ, شيخ) sandwich the corpus names in full
                 # elsewhere is resolved deterministically — «عبد الرحمن» between بشار وسفيان = ابن مهدي.
                 name = narrator.name
-                if muhmal and 0 < i < len(narrators) - 1:
+                # the (تلميذ, شيخ) sandwich is only valid when both neighbours are on the SAME route —
+                # a ح seam (i or i+1 begins a new route) gives a false شيخ, so skip تمييز المهمل there.
+                same_route = i not in route_starts and (i + 1) not in route_starts
+                if muhmal and 0 < i < len(narrators) - 1 and same_route:
                     from app.rijal.muhmal import resolve as _resolve_muhmal
                     name = _resolve_muhmal(name, narrators[i - 1].name, narrators[i + 1].name, muhmal)
                     if name != narrator.name:
@@ -218,19 +247,23 @@ def analyze_isnad(
                     # disambiguate by the IMMEDIATE neighbours (the specific شيخ/تلميذ), not the whole
                     # chain: diffuse token-overlap lets a wrong namesake win by coincidence («يونس عن
                     # الزهري» → wrongly يونس بن عبيد). With the immediate company he is resolved or
-                    # honestly held — never confidently mis-identified.
+                    # honestly held — never confidently mis-identified. A ح seam neighbour is on a
+                    # different route, so it is NOT used as company.
                     nb: set[str] = set()
-                    if i > 0:
+                    if i > 0 and i not in route_starts:
                         nb |= _clean_tokens(narrators[i - 1].name)
-                    if i < len(narrators) - 1:
+                    if i < len(narrators) - 1 and (i + 1) not in route_starts:
                         nb |= _clean_tokens(narrators[i + 1].name)
                     ctx = frozenset(nb - _clean_tokens(narrator.name))
                     name = canon.canonical(narrator.name, context=ctx)
                 match = rijal.lookup(name)
-                # تمييز بالطبقة (by position): the LAST link narrates from the Prophet ﷺ, so he is a
-                # Companion; if it matches a صحابي, prefer that Companion over a same-name homonym of
-                # a later طبقة («أبي ذر» → جندب الغفاري الصحابي, not عمر بن ذر الكوفي الثقة).
-                if match is not None and i == terminal_idx and match.entry.category != "صحابي":
+                # تمييز بالطبقة (by position): when the chain REACHES the Prophet ﷺ, the last human link
+                # narrates directly from him, so he is a Companion; if it matches a صحابي, prefer that
+                # Companion over a same-name homonym of a later طبقة («عن الأسود عن النبيﷺ» → ابن سريع
+                # الصحابي). Gated on reaches_prophet: on a mawqūf/maqṭūʿ chain the terminal is NOT
+                # necessarily a Companion (الأسود النخعي التابعي in his own مقطوع), so we must not force
+                # صحابي — a genuine Companion there (أبو ذر) is still kept by his natural lookup below.
+                if match is not None and reaches_prophet and i == terminal_idx and match.entry.category != "صحابي":
                     sah = [c for c in rijal.candidates(narrator.name) if c.category == "صحابي"]
                     if sah:
                         from app.rijal.index import RijalMatch
@@ -295,6 +328,8 @@ def continuity(narrators: list[dict], graph) -> dict:
     hint from the texts, not a verdict on سماع. ``graph`` is a NarratorGraph."""
     links = []
     for student, teacher in zip(narrators, narrators[1:]):
+        if teacher.get("route_start"):
+            continue   # ح seam: the route-end and the next route-start aren't a real تلميذ→شيخ link
         weight = graph.link_weight(student["name"], teacher["name"])
         links.append(
             {"from": student["name"], "to": teacher["name"], "count": weight, "seen": weight > 0}
