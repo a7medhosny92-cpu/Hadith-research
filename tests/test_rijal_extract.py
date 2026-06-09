@@ -72,6 +72,21 @@ def test_companion_graded_by_description_not_only_the_word():
     assert cat("محمد بن فلان الكوفي كان أبوه ممن شهد بدرا ثقة من السابعة مات سنة ثمانين ومائة") == "ثقة"
 
 
+def test_enmity_accusation_is_not_a_kadhab_verdict():
+    """An accusation of lying made out of ENMITY is a rejected جرح, not a verdict: «المهلب بن أبي
+    صفرة … من ثقات الأمراء … أعداؤه يرمونه بالكذب» is ثقة (a والٍ), not كذاب — while a CRITIC's own
+    accusation («رماه ابن معين بالكذب») still stands."""
+    from app.parsing.rijal_extract import _entry_to_record
+
+    def cat(body):
+        r = _entry_to_record(1, body, "تقريب التهذيب")
+        return classify(r["grade"])[0] if r else None
+
+    assert cat("المهلب بن أبي صفرة العتكي أبو سعيد البصري من ثقات الأمراء "
+               "فكان أعداؤه يرمونه بالكذب من الثانية") == "ثقة"
+    assert cat("خالد بن عمرو الأموي أبو سعيد الكوفي رماه ابن معين بالكذب من التاسعة") == "كذاب"
+
+
 def test_name_does_not_swallow_the_biography():
     # تقريب Companion entries put the biography (death/events/titles) right after the name;
     # the name must stop at the first biographical cue, not absorb the whole tarjama. These

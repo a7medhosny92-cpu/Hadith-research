@@ -104,6 +104,12 @@ _FALLBACK: list[tuple[str, list[str]]] = [
     ("صدوق", ["لا بأس", "ليس به بأس", "بحديثه بأس", "صالح الحديث", "صويلح", "محله الصدق"]),
     ("ثقة", ["وثقه", "وثقوه", "وثق", "ثقات"]),
 ]
+# An accusation of lying made out of ENMITY/envy is a rejected جرح, not a verdict: «المهلب بن أبي
+# صفرة … من ثقات الأمراء … فكان أعداؤه يرمونه بالكذب» is ثقة, not كذاب. A كذاب grade resting ONLY on
+# an «accused-of» needle (الكذب/بالوضع) is dropped when an enmity marker is present (a critic's own
+# «كذبه»/«وضاع» still stands).
+_ENEMY_REJECTION = re.compile(r"أعداؤه|أعداءه|الأعداء|عدوه|عداوة|حسده|حساده|حاسد|لعداوة|للعداوة|حسدًا|حسدا|بغضًا|بغضا")
+_ACCUSATION_NEEDLES = {"الكذب", "بالوضع", "إلى الوضع", "متهم بالكذب"}
 # Where a name ends and the biography begins — cut the name at the first of these.
 # «عن»/«سمع» start the teachers list (الكاشف: «name سمع … وعنه …»); a death/event/relation
 # word begins the biography. A broad set (incl. feminine/inflected forms: ماتت، توفيت، كانت،
@@ -314,8 +320,13 @@ def _extract_grade(body: str, before: str, has_tabaqa: bool) -> tuple[str, int]:
         words = body[ms[-1].start():].split()[:6]
         return " ".join(words), len(before)
     for canonical, needles in _FALLBACK:
-        if any(n in body for n in needles):
-            return canonical, len(before)
+        hits = [n for n in needles if n in body]
+        if not hits:
+            continue
+        # a كذاب resting ONLY on an «accused-of» needle is a rejected جرح when made out of enmity
+        if canonical == "كذاب" and all(h in _ACCUSATION_NEEDLES for h in hits) and _ENEMY_REJECTION.search(body):
+            continue
+        return canonical, len(before)
     return "", len(before)
 
 
