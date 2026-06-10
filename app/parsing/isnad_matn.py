@@ -55,7 +55,8 @@ _ANNA = re.compile(
 # grade begins — so we do NOT merge the next span into the matn. Matched on diacritic-STRIPPED text
 # (al-Mustadrak is heavily vocalised, so vocalised «هذا حَدِيث» / «احتَجَّ» must still match).
 _EDITORIAL = re.compile(
-    r"أبو عبد الله|تنبيه|انظر|أخرجه|رواه|أخرجاه|احتج|اتفاق|تحفة|الأطراف|قلت|على شرط|هذا حديث|هذا إسناد|\(\s*\d"
+    r"أبو عبد الله|قال أبو داود|قال أبو عيسى|تنبيه|انظر|أخرجه|رواه|أخرجاه|احتج|اتفاق|تحفة|الأطراف|"
+    r"قلت|على شرط|هذا حديث|هذا إسناد|\(\s*\d"
 )
 # A quoted span introduced by a reference preposition («… في "المسند الصحيح"», «كتابه "…"») is a
 # title/citation in the commentary, not the matn — stops the dialogue-extension at al-Ḥākim's note.
@@ -110,6 +111,10 @@ _GRADE_TAIL = re.compile(
         r"\[\s*" + flexible_word("التعليق"),
         flexible_word("تلخيص") + r"\s+" + flexible_word("الذهبي"),
         flexible_word("وفي") + r"\s+" + flexible_word("الباب"),
+        # the collection author's own editorial note after the matn — Abū Dāwūd in his Sunan,
+        # al-Tirmidhī («أبو عيسى») in his Jāmiʿ — is never part of the hadith body.
+        flexible_word("قال") + r"\s+" + flexible_word("أبو") + r"\s+" + flexible_word("داود"),
+        flexible_word("قال") + r"\s+" + flexible_word("أبو") + r"\s+" + flexible_word("عيسى"),
     )),
     re.DOTALL,
 )
