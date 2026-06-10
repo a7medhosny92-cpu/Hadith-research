@@ -313,9 +313,11 @@ def run_rijal(books: Iterable[int], llm, cache: Cache, *, sample: int | None, dr
     stats = {"ok": 0, "err": 0, "hit": 0}
     for bid in books:
         source = next((k for k, v in RIJAL_BOOKS.items() if v == bid), str(bid))
-        for _num, body in iter_tarjamas(bid):
-            if sample is not None and n >= sample:
+        taken = 0                                         # --sample is PER BOOK, so it reaches every
+        for _num, body in iter_tarjamas(bid):             # book (else it never left the first, تقريب)
+            if sample is not None and taken >= sample:
                 break
+            taken += 1
             n += 1
             prompt = RIJAL_PROMPT.format(body=body)
             if dry:
@@ -338,9 +340,11 @@ def run_chains(books: Iterable[int], llm, cache: Cache, *, sample: int | None, d
     seen = sent = fixed = rejected = 0
     stats = {"ok": 0, "err": 0, "hit": 0}
     for bid in books:
+        scanned = 0                                       # --sample is PER BOOK (see run_rijal)
         for text in iter_chain_texts(bid):
-            if sample is not None and seen >= sample:
+            if sample is not None and scanned >= sample:
                 break
+            scanned += 1
             seen += 1
             if not chain_is_suspicious(text):
                 continue                                  # the regex parse is fine — skip the LLM
@@ -370,7 +374,8 @@ def main() -> None:
     ap.add_argument("--model", help="exact model id (e.g. ollama/gemma4:31b-cloud); "
                                     "overrides --engine and the default llm_extract_model")
     ap.add_argument("--book", type=int, action="append", help="restrict to a book id (repeatable)")
-    ap.add_argument("--sample", type=int, help="process only the first N units (for a quick look)")
+    ap.add_argument("--sample", type=int, help="process only the first N units PER BOOK (quick look "
+                                               "that still reaches تهذيب الكمال, not just تقريب)")
     ap.add_argument("--dry-run", action="store_true", help="print prompts, never call the LLM")
     ap.add_argument("--out", type=Path, help="output jsonl (default: data/<mode>_llm.jsonl)")
     args = ap.parse_args()
