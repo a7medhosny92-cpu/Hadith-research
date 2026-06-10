@@ -102,17 +102,27 @@ def _resolve_model(settings: Settings, engine: str | None, model: str | None = N
     return chosen, api_base
 
 
-def _make_llm(settings: Settings, model: str, api_base: str | None) -> Callable[[str], str]:
+def _make_llm(settings: Settings, model: str, api_base: str | None, timeout: float) -> Callable[[str], str]:
     """A ``prompt -> raw_text`` callable for ``model``. litellm is imported lazily (optional 'llm' extra)."""
     def call(prompt: str) -> str:
         import litellm  # lazy
         resp = litellm.completion(
-            model=model, api_base=api_base, temperature=0.0, timeout=settings.llm_timeout,
+            model=model, api_base=api_base, temperature=0.0, timeout=timeout,
             messages=[{"role": "user", "content": prompt}],
         )
         return resp["choices"][0]["message"]["content"]
 
     return call
+
+
+def _tick(stats: dict, label: str, every: int = 25) -> None:
+    """Periodic progress on the slow part (new LLM calls), so a long batch isn't a silent wait —
+    and a rising «failed» count surfaces timeouts (the run stays resilient and keeps going)."""
+    n = stats["ok"]
+    if n and n % every == 0 and n != stats.get("_last"):
+        extra = f" · {stats['err']} failed→regex" if stats["err"] else ""
+        print(f"  … {label}: {n} new calls · {stats['hit']} cached{extra}", flush=True)
+        stats["_last"] = n
 
 
 def _parse_json(raw: str) -> dict | None:
@@ -339,6 +349,7 @@ def run_rijal(books: Iterable[int], llm, cache: Cache, *, sample: int | None, dr
                     print(f"\n── PROMPT (rijal, {source}) ──\n{prompt}\n")
                 continue
             rec = _query(llm, prompt, cache, cache.key("rijal", body), stats)
+            _tick(stats, "rijal")
             good = validate_rijal(rec, body)
             if good:
                 kept += 1
@@ -369,6 +380,7 @@ def run_chains(books: Iterable[int], llm, cache: Cache, *, sample: int | None, d
                     print(f"\n── PROMPT (chain) ──\n{prompt}\n")
                 continue
             seg = _query(llm, prompt, cache, cache.key("chains", text), stats)
+            _tick(stats, "chains")
             good = validate_chain(seg, text)
             if good:
                 fixed += 1
@@ -415,6 +427,7 @@ def run_chains_diff(books: Iterable[int], llm, cache: Cache, *, sample: int | No
                     print(f"\n── REGEX narrators ──\n{regex_names}\n   {text[:160]}")
                 continue
             seg = _query(llm, CHAIN_PROMPT.format(text=text), cache, cache.key("chains", text), stats)
+            _tick(stats, "chains-diff")
             good = validate_chain(seg, text)
             if not good:
                 llm_bad += 1                              # the LLM's own segmentation wasn't faithful — skip
@@ -449,6 +462,8 @@ def main() -> None:
                                                "that still reaches تهذيب الكمال, not just تقريب)")
     ap.add_argument("--dry-run", action="store_true", help="print prompts, never call the LLM")
     ap.add_argument("--out", type=Path, help="output jsonl (default: data/<mode>_llm.jsonl)")
+    ap.add_argument("--timeout", type=float, help="seconds per LLM call (default: max(LLM_TIMEOUT, 180) — "
+                                                  "cloud models can be slow on long chains)")
     args = ap.parse_args()
 
     settings = Settings()
@@ -467,12 +482,14 @@ def main() -> None:
     if not books:
         sys.exit(f"no books to process under {BOOKS} — run update.bat to download the corpus first")
 
-    llm = None if args.dry_run else _make_llm(settings, model_name, api_base)
+    # Cloud models can exceed the 60s /ask default on long chains, so give the batch real headroom.
+    timeout = args.timeout or max(settings.llm_timeout, 180.0)
+    llm = None if args.dry_run else _make_llm(settings, model_name, api_base, timeout)
     cache = Cache(model=model_name)                       # keyed by model → switching models re-extracts
     out_path = args.out or Path(f"data/{args.mode}_llm.jsonl")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if not args.dry_run:
-        print(f"model={model_name} · books={books} · out={out_path}  (cache: {CACHE_DB})")
+        print(f"model={model_name} · books={books} · timeout={timeout:.0f}s · out={out_path}  (cache: {CACHE_DB})")
     with (open(os.devnull, "w") if args.dry_run else open(out_path, "w", encoding="utf-8")) as out:
         runner = {"rijal": run_rijal, "chains": run_chains, "chains-diff": run_chains_diff}[args.mode]
         runner(books, llm, cache, sample=args.sample, dry=args.dry_run, out=out)
