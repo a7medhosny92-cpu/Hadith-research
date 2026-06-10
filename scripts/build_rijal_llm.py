@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
 from app.config import Settings
+from app.ingestion.catalog import CORE_COLLECTIONS
 from app.parsing.html_clean import clean_block
 from app.parsing.normalize import normalize_for_search
 from app.parsing.rijal_extract import (
@@ -61,7 +62,11 @@ CACHE_DB = Path("data/llm_cache.db")
 # and miss the real, «عَن:»-marked entries. تهذيب's network is already extracted by the dedicated
 # regex (app/parsing/tahdhib_extract.py, ~94% شيوخ/تلاميذ) and wired into build_graph.
 RIJAL_BOOKS = {"تقريب التهذيب": 8609, "الكاشف": 2171}
-CHAIN_BOOKS = {"صحيح البخاري": 1284, "صحيح مسلم": 1727}
+# Chains are SCANNED across ALL core collections, but only the regex-suspicious ones (matn leaked
+# into the chain, a verse, 0 narrators) are sent to the LLM — so covering the leak-prone books
+# (al-Mustadrak, the Sunan, Musnad Aḥmad, Ibn Khuzayma/Ḥibbān — not just the clean البخاري/مسلم) is
+# cheap and is exactly where the re-segmentation pays off. {book_id: name}.
+CHAIN_BOOKS = CORE_COLLECTIONS
 PROMPT_VERSION = "v1"          # bump to invalidate the cache when a prompt changes
 
 # Categories grades.classify may emit — a grade word the LLM reports must map into this set,
@@ -393,10 +398,16 @@ def main() -> None:
     # default, so a bare invocation (and update.bat) use the dedicated extraction model — no .env
     # juggling — while --engine / --model stay available for experiments.
     model_name, api_base = _resolve_model(settings, args.engine, args.model)
-    books = args.book or list((RIJAL_BOOKS if args.mode == "rijal" else CHAIN_BOOKS).values())
+    # RIJAL_BOOKS is name→id (.values() = ids); CHAIN_BOOKS is id→name (list() = ids).
+    books = args.book or list(RIJAL_BOOKS.values() if args.mode == "rijal" else CHAIN_BOOKS)
     missing = [b for b in books if not (BOOKS / f"{b}.json").exists()]
-    if missing:
+    if missing and args.book:                            # an explicit --book that isn't there → stop
         sys.exit(f"missing book(s) {missing} under {BOOKS} — run update.bat to download them first")
+    if missing:                                          # default list: just skip what isn't downloaded
+        print(f"[skip] not downloaded: {missing}")
+        books = [b for b in books if b not in missing]
+    if not books:
+        sys.exit(f"no books to process under {BOOKS} — run update.bat to download the corpus first")
 
     llm = None if args.dry_run else _make_llm(settings, model_name, api_base)
     cache = Cache(model=model_name)                       # keyed by model → switching models re-extracts
