@@ -127,6 +127,10 @@ def main() -> None:
     # Refresh the isnad-audit report (the «التدقيق» review tab) so it reflects the new data.
     step("+ تدقيق  Build the isnad audit report (review tab)",
          [PY, "-X", "utf8", "-m", "scripts.audit_isnad"])
+    # …and the matn-audit report (the «تدقيق المتون» review tab): flag every extracted matn that
+    # looks empty/truncated, isnad-leaked, grade-tailed, or non-matn.
+    step("+ تدقيق المتون  Build the matn audit report (review tab)",
+         [PY, "-X", "utf8", "-m", "scripts.audit_matn"])
     tail = (" (incl. the LLM chain re-segmentation" + (" + رجال" if args.llm_rijal else "") + ")") if run_llm else ""
     print(f"\nDone — code, corpus and indexes are all up to date{tail}.")
 
