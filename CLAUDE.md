@@ -159,6 +159,10 @@ verify every **matn** (the new «تدقيق المتون»).
   inclusion + network) → لسان-الميزان 36357 (the weak non-Six) → الطبقات 9351 (broad + طبقة, also the A-lever). New
   helper **`scripts.find_book <title>`** locates ids from the cached catalog. **WAITING ON THE USER:** finish the
   downloads → «fatto» → I sample each format (via Drive / `sample_source`) and write the first extractor.
+  **★ NOW SKIPPED FROM THE HADITH PARSE (2026-06-11):** once downloaded, `scripts.parse` read all 10 as hadith →
+  **+26k bogus matn-less «hadith»** (V/empty exploded 1299→4312, scanned 86k→112k). FIXED by adding all 10 to
+  **`RIJAL_PROSE_BOOKS`** (`app/ingestion/catalog.py`) so parse skips them (+ `_drop_stale` removes their stale
+  `processed/{id}.jsonl`). They stay OUT of the corpus until their extractors land. **Needs a re-parse to clear.**
 - **Also pending a `build_rijal`/`update.bat`:** the build-time fixes (`_COMPANION`, classify, `_drop_stale`, the
   matn re-split) only fully apply on a re-parse; the matcher/anchor fixes are LIVE (effective on the next `audit_isnad`).
 

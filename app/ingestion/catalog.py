@@ -68,15 +68,29 @@ RIJAL_SOURCES: dict[int, str] = {
     2171: "الكاشف",
 }
 
-# Verbose (prose) رجال biographies — تهذيب الكمال / تهذيب التهذيب. They are NOT hadith, and their
-# flowing prose does NOT reduce to one terse verdict, so they are *excluded from the hadith parse*
-# (otherwise their pages pollute the hadith index) but are deliberately NOT in RIJAL_SOURCES —
-# build_rijal's terse extractor would mangle them. A dedicated prose extractor is future work.
+# Verbose (prose) رجال / صحابة biographies. They are NOT hadith, and their flowing prose does NOT
+# reduce to one terse verdict, so they are *excluded from the hadith parse* (otherwise their pages
+# pollute the hadith index — each tarjama would surface as a bogus matn-less «hadith») but are
+# deliberately NOT in RIJAL_SOURCES — build_rijal's terse extractor would mangle them. Dedicated
+# prose extractors (per book) are future work; until then they are simply kept out of the corpus.
 RIJAL_PROSE_BOOKS: dict[int, str] = {
     3722: "تهذيب الكمال",
     2170: "الجرح والتعديل لابن أبي حاتم",   # early, independent, multi-critic — covers beyond the Six Books
     1278: "تهذيب التهذيب (ط دبي)",
     1293: "تهذيب التهذيب (ط الرسالة)",
+    # ── Companion (صحابة) dictionaries + broad ثقات/ميزان coverage (downloaded 2026-06-11 to fill
+    #    «مجهول»; extractors pending — see ROADMAP/CLAUDE.md). MUST be skipped here so the parse
+    #    doesn't read their biographies as matn-less hadith (the +26k «empty matn» regression).
+    9767: "الإصابة في تمييز الصحابة (ابن حجر)",
+    1110: "أسد الغابة (ابن الأثير)",
+    12288: "الاستيعاب (ابن عبد البر)",
+    10490: "معرفة الصحابة (أبو نعيم)",
+    9351: "الطبقات الكبرى (ابن سعد)",
+    96165: "الثقات لمن ليس في الكتب الستة",
+    5816: "الثقات (ابن حبان)",
+    5825: "الثقات (العجلي)",
+    1692: "ميزان الاعتدال (الذهبي)",
+    36357: "لسان الميزان (ابن حجر)",
 }
 
 
