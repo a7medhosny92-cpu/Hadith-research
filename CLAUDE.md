@@ -102,7 +102,52 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
 ## Current work — KEEP UPDATED
 **Focus:** cut wrong isnad verdicts in «التدقيق» by identifying the narrator from the chain.
 
-**★ LATEST (2026-06-10, large session → #145). THE MATN-EXTRACTION ARC + the regex-vs-LLM split, decided
+**★ LATEST (2026-06-10, continued → THIS SESSION). FULL-CORPUS REBUILD MEASURED + the شيخ-only relaxation
+validated on REAL data. Analysis + plan, NO code yet; on branch `claude/intelligent-bardeen-HAsrg`.**
+The user ran `update.bat` to completion **with the LLM chains pass** (#142–#145 regex + LLM re-seg of the
+flagged ~10%) and uploaded the real `rijal.jsonl` + `audit.json` + `muhmal.json`; I decomposed them in-container.
+New «التدقيق»: **W 688 · S 2918 · A 82,678** (89,424 chains · 9,827 rijal) vs the pre-#117 baseline **W 833 ·
+S 5783 · A 39,312**.
+- **W↓ (−17%) and S↓ (−50%) are the #117–#145 WIN** — far fewer *wrong* verdicts (a متروك condemning the wrong
+  man; a صحابي graded mid-chain). **A↑ (×2.1) is NOT a regression — it is honest holds of GENUINE homonymy.**
+  Proof: `measure_dedup` on the real rijal = only **199 removable**, **1,109 confirmed-homonym keys**, 280
+  unconfirmable → **dedup is not the lever**. The A sample (500) is concentrated on high-frequency names
+  (علي بن محمد ×56, محمد بن يحيى ×31, سفيان ×30, أبو معاوية, الأوزاعي…), **0 garbage**, ~**88% genuinely held**
+  (candidates disagree), ~12% grade_agreed. → **A is a COVERAGE gap, fixed by CONTEXT, not dedup.**
+- **THE LEVER — شيخ-only relaxation, MEASURED on the real `muhmal.json`** (12,052 contexts, clean, ~85% add
+  specificity): keying on `(bare-ism, شيخ)` instead of the exact `(تلميذ, شيخ)` → **6,165/6,809 (90%) resolve
+  UNIQUELY**, and **5,731** of those resolve a globally-ambiguous bare ism the name-alone can't (decided by its
+  شيخ). **يونس/الزهري flag CONFIRMED**: under شيخ=الزهري «يونس» → يونس بن يزيد الأيلي; «يونس عن الحسن» → يونس بن
+  عبيد. This is the DISAMBIGUATION «شيخ-only relaxation» (line ~130) — deterministic, documentary, attacks the
+  silent mis-ID class **better than tuning `canon._pick`'s heuristic threshold**.
+- **Two resolvable clusters surfaced:** **S is dominated by «أبو إسحاق» (194+31 = 225)** — a kunya collision
+  (سعد بن أبي وقاص · صحابي vs أبو إسحاق السبيعي · تابعي ثقة), which the relaxation resolves. **W (688) is a
+  REVIEW QUEUE, not 688 errors** — it includes genuine متروك correctly graded (يحيى بن العلاء, طلحة بن عمرو,
+  أبو هارون العبدي…); the real mis-IDs are a subset.
+- **Graph-lag caveat:** this run's `build_graph` (step 7) unified names with the **old pre-#117** `rijal.jsonl`,
+  so `canon._pick`'s company is stale → part of the A↑ is the lag, not just the discipline.
+- **LLM cache was PARTIAL** (1652 cached, more suspicious chains remained) — I wrongly advised stopping the
+  re-run to keep the baseline «pure»; the user (rightly) wants the LLM finished now (completes the cache →
+  future runs fully cached/fast). Lesson: a small confound (LLM touches ~1–2% of chains) was not worth a
+  re-run later. The user is re-running fully (lag-fix + LLM-complete).
+
+**PLAN (sequenced, USER-CHOSEN — «one change at a time»):** **(1) clean lag-only baseline FIRST** — rerun the
+tail only (`build_graph → build_rijal → audit_isnad`, or `update --no-llm`) so the graph rebuilds from the
+**new clean** rijal and ONLY the lag changes → measure the lag's A-drop. **(2) Then implement the شيخ-only
+relaxation** + tests. **(3) Re-measure.** Goal: turn «held» into «identified» where the شيخ decides — cut A
+**without guessing** (keep W/S low).
+**STATUS:** (1) **DONE** — the lag-fix re-run (graph rebuilt from the clean rijal **+ LLM completed**) gave
+**W 716 · S 2921 · A 82,394** vs the prior **688/2918/82,678**: A moved only **−284 (−0.3%)** → **the lag was
+NOT the lever**, confirming A is structural homonymy (the relaxation is the only lever). Baseline to beat: **A
+≈ 82,394.** (2) **DONE — IMPLEMENTED on the branch** (`app/rijal/muhmal.py`): `build_map` also emits an
+`"@<bare-ism>\t<شيخ>" → full` map (helper `_pick_unique`; شيخ gated by `_specific_shaykh` = ≥2 tokens OR a
+single ال-nisba/laqab like الزهري — a bare common ism «محمد» is refused); `resolve` tries the exact
+`(تلميذ,شيخ)` first, then the relaxation; the `@` sentinel can't collide with exact keys → **byte-compatible
+with old `muhmal.json`**. 4 synthetic tests (يونس/الزهري resolves; homonymy held; generic-شيخ skipped; exact
+precedence); **318 green**. **WAITING ON THE USER:** run `update.bat` (rebuilds `muhmal.json` *with* the
+relaxation) → send the new **W/S/A** to measure the A-drop vs 82,394.
+
+**★ (2026-06-10, large session → #145). THE MATN-EXTRACTION ARC + the regex-vs-LLM split, decided
 with a SAMPLE-DRIVEN method** (user extracts N real hadiths/book via `parse_book_file` → I run
 `split_isnad_matn` vs the real text, categorise the cuts, fix the clean ones / flag the hard ones → main).
 **Economics (measured on the samples): the regex does ~85-90% of matn and ~75% of narrators FREE &

@@ -251,6 +251,39 @@ the user's machine after `update.bat`** — the container has only a sample rija
 - **[LATENT] `graph.disambiguate` sorted keys** (`graph.py` ~170) — same anagram family, safe only while
   `_AMBIGUOUS` keys stay single-token.
 
+## Measured — 2026-06-10 (full-corpus rebuild + شيخ-only relaxation validated on real data)
+The user ran `update.bat` to completion (post #117–#145, **with the LLM chains pass**) and uploaded the real
+`rijal.jsonl` + `audit.json` + `muhmal.json`; decomposed in-container (the container still can't scan the full
+corpus itself — exit 144 — but `measure_dedup` and the audit cases run fine on the uploaded files).
+
+**New «التدقيق»: W 688 · S 2918 · A 82,678** (89,424 chains · 9,827 rijal) vs the pre-#117 **W 833 · S 5783 ·
+A 39,312**. **W↓17% / S↓50% = the fixes' win** (fewer *wrong* verdicts). **A↑×2.1 is honest holds, NOT a
+regression** — and the decomposition proves the bottleneck is **coverage, not dedup**:
+- `measure_dedup` on the real rijal: only **199 removable**, **1,109 confirmed-homonym keys**, 280
+  unconfirmable → the «مشترك» is **genuine homonymy**, so dedup can deflate almost none of the A.
+- A sample (500): concentrated on **high-frequency** names (علي بن محمد ×56, محمد بن يحيى ×31, سفيان ×30,
+  أبو معاوية, الأوزاعي…), **0 garbage** (0 empty lookups), ~**88% genuinely held** (candidates disagree),
+  ~12% grade_agreed. → **A is a COVERAGE gap, fixed by CONTEXT, not dedup.**
+- **S is dominated by «أبو إسحاق» (194+31 = 225)** — a **kunya collision** (سعد بن أبي وقاص · صحابي vs أبو
+  إسحاق السبيعي · تابعي ثقة). **W (688) is a review queue**, not 688 errors (it includes genuine متروك
+  correctly graded — يحيى بن العلاء, طلحة بن عمرو, أبو هارون العبدي…; real mis-IDs are a subset).
+
+**THE «شيخ-only relaxation» (this doc's earlier idea, line ~130) — now MEASURED on the real `muhmal.json`
+(12,052 contexts, clean, ~85% effective):** keying on `(bare-ism, شيخ)` instead of the exact `(تلميذ, شيخ)`
+→ **6,165/6,809 (90%) resolve UNIQUELY**, and **5,731** of them resolve a globally-ambiguous bare ism the
+name-alone can't (decided by its شيخ). The flagged **يونس/الزهري case is CONFIRMED** in the data (under
+شيخ=الزهري «يونس» → يونس بن يزيد الأيلي; «يونس عن الحسن» → يونس بن عبيد). → **This is now the validated primary
+lever** — deterministic, documentary, and it attacks the silent-mis-ID class **better than tuning
+`canon._pick`'s heuristic threshold** (a pick on thin/generic overlap). To build: `build_map` emits a second
+`(bare-ism, شيخ) → full` map (kept only at uomo-unico + `min_count`, شيخ required ≥2 tokens to avoid conflating
+two homonymous teachers); `resolve` tries the exact pair first, then the relaxation.
+
+**Graph-lag caveat & plan (user-chosen, one change at a time):** this rebuild's `build_graph` unified names
+with the **old pre-#117** rijal, so part of A↑ is the stale company `canon._pick` read. So: **(1) measure a
+clean lag-only baseline first** (`build_graph → build_rijal → audit_isnad` on the *new* clean rijal), **(2)
+then land the relaxation** + synthetic tests, **(3) re-measure.** Goal: turn «held» into «identified» where the
+شيخ decides — cut A *without guessing* (keep W/S low).
+
 ## Next steps
 1. **Measure first.** The user runs `update.bat` (applies #117/#118/#119, rebuilds rijal + graph,
    regenerates the audit) and reports the new **W/S/A** from «التدقيق». This both shows the impact of
