@@ -62,7 +62,8 @@ Depth docs (NOT auto-loaded — open when relevant):
 - **`python -m scripts.audit_matn`** → rescans every matn → `data/matn_audit.json` (the «تدقيق المتون» tab):
   flags V (empty/fragment) · I (isnad-in-matn) · G (grade/takhrij tail) · Q (verse/heading). Logic in
   `app.parsing.matn_audit.flag_matn`. **Also run by update.bat** (after audit_isnad); runnable standalone (needs
-  only `index.db`, seconds). Built 2026-06-11 to «verify every matn».
+  only `index.db`, seconds). Built 2026-06-11 to «verify every matn». **Surfaced in the app as the «تدقيق المتون»
+  tab** (`/matn-audit` endpoint, `renderMatnAudit` — shows each flagged matn + the reason + citation).
 - **`python -m scripts.measure_dedup [--input f.jsonl]`** → read-only: how much of «مشترك» is the
   same man twice vs genuine homonymy.
 - **`python -m scripts.audit_conflicts [--cap N]`** → read-only: sweeps all رجال grouped by ism+father,
@@ -296,7 +297,7 @@ The user ran `update.bat` with the 5 fixes → **W 716→686 · S 2921→2551 (�
   متن counterpart of `audit_isnad`, to «verify every matn» (the user's directive). Scans every matn in index.db,
   flags **V** (empty/fragment + body-in-isnad — the «detti non completi») · **I** (a narration verb / leading
   «عن فلان» in the matn) · **G** (grade/takhrij tail) · **Q** (verse-only ﴿…﴾ or باب/كتاب heading) →
-  `data/matn_audit.json` (the «تدقيق المتون» tab — **UI tab still TBD**). Wired into `update.bat` after the isnad
+  `data/matn_audit.json` (the «تدقيق المتون» tab — **BUILT: `/matn-audit` + `renderMatnAudit`**). Wired into `update.bat` after the isnad
   audit. High-precision (إنما الأعمال بالنيات does NOT flag; al-Mustadrak #7514 «ادع تلك الشجرة» → V). V's
   word-count thresholds are the knob to calibrate on the real distribution.
 - **★ FIRST matn_audit MEASURED + 2 regex EXTRACTION FIXES landed.** The user ran `scripts.audit_matn` →

@@ -239,6 +239,7 @@
     <button data-mode="notebook">دفتري</button>
     <span class="bar-sep"></span>
     <button data-mode="audit" class="doc">التدقيق</button>
+    <button data-mode="matn" class="doc">تدقيق المتون</button>
     <button data-mode="conflicts" class="doc">تعارض الرجال</button>
     <button data-mode="method" class="doc">المنهجية</button>
     <button data-mode="arch" class="doc">البنية</button>
@@ -442,12 +443,12 @@
 <figcaption style="text-align:center;color:#666;font-size:.85rem;margin-top:.4rem;line-height:1.6">المسار: الكتب (المصادر) ← البناء (الغراف ⭐) ← التمييز ← النتيجة. الخيطُ الذهبيّ = شبكةُ الرجال (تهذيب الكمال والجرح والتعديل) التي تَحُلّ «المشترك» بالرفقة.</figcaption></figure></div>
 <script>
 const LABELS = {search:"ابحث", ask:"اسأل", takhrij:"خرّج", narrator:"اعرض",
-  network:"تنقّل", isnad:"حقّق", notebook:"ابحث", method:"اعرض", arch:"اعرض", tech:"اعرض", audit:"اعرض", conflicts:"اعرض"};
+  network:"تنقّل", isnad:"حقّق", notebook:"ابحث", method:"اعرض", arch:"اعرض", tech:"اعرض", audit:"اعرض", conflicts:"اعرض", matn:"اعرض"};
 const PLACEHOLDER = {search:"اكتب الحديث أو السؤال…", ask:"اكتب سؤالك…",
   takhrij:"اكتب متن الحديث…", narrator:"اكتب اسم الراوي…",
   network:"اكتب اسم الراوي للتنقّل في شبكته…",
   isnad:"الصق الإسناد… أو رقم حديثٍ مفهرس", notebook:"ابحث في دفترك… (فارغ = الكل)",
-  method:"", arch:"", tech:"", audit:"", conflicts:""};
+  method:"", arch:"", tech:"", audit:"", conflicts:"", matn:""};
 const ENGINE_AR = {
   off: "إجابة استخراجية من المصادر (بدون ذكاء اصطناعي)",
   local: "أُجيب عبر محرّك محلي (Ollama)",
@@ -480,7 +481,7 @@ document.querySelectorAll(".modes button").forEach(b => b.onclick = () => {
   q.placeholder = PLACEHOLDER[mode];
   syncEngineUI();
   // «المنهجية» / «البنية» / «التقنية» / «التدقيق» are reading pages with no query — hide the box.
-  const info = mode === "method" || mode === "arch" || mode === "tech" || mode === "audit" || mode === "conflicts";
+  const info = mode === "method" || mode === "arch" || mode === "tech" || mode === "audit" || mode === "conflicts" || mode === "matn";
   q.style.display = info ? "none" : "";
   go.style.display = info ? "none" : "";
   if(mode === "notebook" || info){
@@ -728,6 +729,7 @@ async function run(){
   if(mode === "arch"){ renderArchitecture(); return; }     // architecture / how it works
   if(mode === "tech"){ renderTech(); return; }              // full technical reference
   if(mode === "audit"){ renderAudit(); return; }            // isnad audit — cases to review
+  if(mode === "matn"){ renderMatnAudit(); return; }         // matn audit — extraction errors to review
   if(mode === "conflicts"){ renderConflicts(); return; }    // rijal grave↔trustworthy collisions
   if(!query && mode !== "notebook") return;   // notebook lists everything when empty
   results.innerHTML = `<div class="state">… جارٍ التنفيذ</div>`;
@@ -1549,6 +1551,39 @@ async function renderConflicts(){
         + `<span class="simbadge">الثقة: ${esc((x.trustworthy || []).join("، "))}</span></div>`;
     });
   }
+  results.innerHTML = html;
+}
+
+// «تدقيق المتون» — the matn-audit report (scripts.audit_matn): every matn flagged V (empty/fragment) ·
+// I (isnad leaked in) · G (grade/takhrīj tail) · Q (verse/heading), with the extracted text and the
+// reason — candidates for review / the faithful LLM `--mode chains` repair, never a verdict.
+async function renderMatnAudit(){
+  results.innerHTML = `<div class="state">… جارٍ تحميل تقرير تدقيق المتون</div>`;
+  let d;
+  try { d = await getJSON("/matn-audit"); }
+  catch(e){ results.innerHTML = `<div class="state">${esc(e.message || "تعذّر التحميل")}</div>`; return; }
+  if(!d.available){
+    results.innerHTML =
+      `<div class="note">لم يُبْنَ تقريرُ تدقيق المتون بعد. شغّل الأمر التالي بِبيئة المشروع، ثم أعد فتح هذه الصفحة:</div>`
+      + `<div class="card"><div class="answer">.venv\\Scripts\\python.exe -m scripts.audit_matn</div></div>`
+      + `<div class="note">يفحص كلَّ متنٍ ويجمع المشتبهة (مبتورًا / تسرَّب إليه الإسناد / حكمًا أو تخريجًا / ليس متنًا) — ويتجدّد تلقائيًّا مع update.bat.</div>`;
+    return;
+  }
+  let html = `<div class="note">تدقيقُ المتون — فُحص <b>${d.scanned}</b> متنًا · ${esc(d.generated)} · المتونُ الفارغة: ${d.empty_matn || 0}</div>`
+    + `<div class="note">حالاتٌ يُنصح بمراجعتها يدويًّا (قرائنُ اشتباهٍ لا أحكام): المتنُ كما استُخرج، مع سببِ الاشتباه. القائمةُ الكاملةُ في data/matn_audit.json.</div>`;
+  ["V", "I", "G", "Q"].forEach(code => {
+    const total = (d.counts || {})[code] || 0;
+    if(!total) return;
+    const cases = (d.cases || {})[code] || [];
+    html += `<div class="comp-head">${esc((d.labels || {})[code] || code)} <span class="simbadge">(${total})</span></div>`;
+    cases.forEach(c => {
+      const cite = [c.collection, (c.number != null ? "رقم " + c.number : null)].filter(Boolean).join("  ·  ");
+      html += `<div class="rawi-item audit-head">`
+        + `<span>${esc(c.matn || "")}<span class="r-era"> — ${esc(c.detail || "")}</span></span>`
+        + `<span class="simbadge">${esc(cite)}</span></div>`;
+    });
+    if(cases.length < total) html += `<div class="note">… و${total - cases.length} حالةً أخرى في التقرير</div>`;
+  });
   results.innerHTML = html;
 }
 

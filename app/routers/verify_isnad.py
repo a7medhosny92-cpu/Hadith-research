@@ -137,3 +137,19 @@ def conflicts() -> dict:
         return {"available": False}
     report["available"] = True
     return report
+
+
+@router.get("/matn-audit")
+def matn_audit() -> dict:
+    """The prebuilt matn-audit report (``scripts.audit_matn``) for the «تدقيق المتون» tab — every matn
+    flagged V (empty/fragment) · I (isnad leaked in) · G (grade/takhrīj tail) · Q (verse/heading), for
+    review. Returns ``{available: False}`` when the report hasn't been built yet."""
+    path = get_settings().data_dir / "matn_audit.json"
+    if not path.exists():
+        return {"available": False}
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"available": False}
+    report["available"] = True
+    return report
