@@ -73,6 +73,12 @@ Depth docs (NOT auto-loaded — open when relevant):
   `data/rijal.jsonl`) when a measurement needs them.
 - turath.io is often **unreachable from here** → can't rebuild the corpus in the container; the user
   runs heavy steps on their machine. Catalog cached at `data/raw/turath/catalog.json`.
+- **★ SHARED GOOGLE DRIVE FOLDER (the user's, persistent across sessions — given 2026-06-11):**
+  https://drive.google.com/drive/folders/1CFX4zxFlYv61G411gpRT9ubDAToMgVlu — the user drops the
+  real measurement files here (`rijal.jsonl`, `audit.json`, `matn_audit.json`, `muhmal.json`, books).
+  **Fetch them via the `Google_Drive` MCP** (`search_files` by title → `download_file_content` by id),
+  so a session can pull the latest data WITHOUT waiting for a manual chat upload. (Big files >~20 MB
+  still blow up context as base64 — prefer the small audit/rijal JSON, not the 15-30 MB raw books.)
 
 ## Conventions (do these)
 - **Reply to the user in ITALIAN** (domain terms stay Arabic).
@@ -155,7 +161,12 @@ LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 c
   father. **A's count-lever is NETWORK COVERAGE** (تهذيب 3722 / الجرح 2170 give `canon._pick` the شيوخ company to
   resolve «علي بن محمد» ×52 = 4 real men — تقريب/الكاشف carry NO network, so the dominant A is structural homonymy
   the relaxation can't touch). **WAITING ON THE USER: one `update.bat`** → send `audit.json` + W/S/A to measure the
-  S drop (name-compat + ابن-X) and confirm A holds; and whether تهذيب 3722/الجرح 2170 are downloaded (the A lever).
+  S drop (name-compat + ابن-X) and confirm A holds. **★ A-LEVER STATUS VERIFIED via the shared Drive
+  (`data/raw/turath/`): تهذيب الكمال 3722 IS downloaded (`3722.json` 51 MB → its network already feeds `canon._pick`),
+  but الجرح والتعديل 2170 is MISSING (only 2171 الكاشف present — a GRADES book, NO network; 2171≠2170). →
+  downloading 2170 (the independent multi-critic network, `_NETWORK_SOURCES = {3722, 2170}`) is the remaining A
+  lever; turath.io was unreachable when update.bat tried — retry until `2170.json` lands in `data/raw/turath/`. The
+  container CANNOT fetch turath books (turath.io blocked); the user re-runs the download.**
 
 **★ (2026-06-11, THIS SESSION). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
 fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**
