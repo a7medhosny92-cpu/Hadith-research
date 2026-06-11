@@ -86,6 +86,25 @@ def test_ibn_abi_X_is_the_descendant_not_the_kunya_grandfather():
     assert rij.lookup("أبو مليكة").entry.name == "زهير بن عبد الله"
 
 
+def test_a_complete_name_is_not_ambiguous_with_a_descendant_burying_it():
+    # «محمد بن عبد الله بن جحش» (a صحابي) must NOT read «مشترك» with his descendant «إبراهيم بن محمد
+    # بن عبد الله بن جحش» — the descendant merely carries the ancestor's nasab. When the query is
+    # itself a complete man (a containment match), candidates() drops the non-prefix partials.
+    rij = RijalIndex([
+        {"name": "محمد بن عبد الله بن جحش الأسدي", "grade": "صحابي"},
+        {"name": "إبراهيم بن محمد بن عبد الله بن جحش الأسدي", "grade": "صدوق"},
+    ])
+    cands = rij.candidates("محمد بن عبد الله بن جحش الأسدي", max_results=None)
+    assert [c.name for c in cands] == ["محمد بن عبد الله بن جحش الأسدي"]   # only the man himself
+    assert not rij.lookup("محمد بن عبد الله بن جحش الأسدي").ambiguous
+    # but a bare nisba (no containment) still surfaces every bearer — genuine homonymy stays «مشترك»
+    rij2 = RijalIndex([
+        {"name": "محمد بن مسلم الزهري", "grade": "ثقة"},
+        {"name": "مصعب بن سليم الزهري", "grade": "صدوق"},
+    ])
+    assert len(rij2.candidates("الزهري", max_results=None)) == 2
+
+
 def test_ambiguous_match_is_held_not_graded_weak():
     # «زيد بن علي» beside a متروك namesake AND a ثقة one is مشترك: we don't know which, so the
     # uncertain متروك must NOT make the chain «ضعيف جدًا» — it's held (يُتوقَّف) — nor be audit-W-ed.

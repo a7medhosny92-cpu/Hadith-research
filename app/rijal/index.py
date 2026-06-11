@@ -338,11 +338,14 @@ class RijalIndex:
         if partial:
             # only the best reading: top coverage and, if any form is a prefix, prefix forms
             # only — so coincidental namesakes (محمد بن السائب الكلبي for «محمد بن بشر») are left
-            # out of the homonym set the chain chooses among.
+            # out of the homonym set the chain chooses among. And when the query is ITSELF a complete
+            # man (a containment match exists), drop the non-prefix partials: they are forms that BURY
+            # the query non-leading in a longer nasab — a descendant («إبراهيم بن محمد بن … بن جحش» for
+            # «محمد بن عبد الله بن جحش») or the nephew, not the man — so the full name isn't false «مشترك».
             top_cov = max(c for c, _, _ in partial)
             any_prefix = any(p for c, p, _ in partial if c == top_cov)
             for c, pref, e in partial:
-                if c == top_cov and (pref or not any_prefix):
+                if c == top_cov and (pref or (not any_prefix and not contained)):
                     take(e)
         if max_results is not None and len(out) > max_results:
             return []
