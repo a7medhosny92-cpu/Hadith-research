@@ -214,6 +214,13 @@ LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 c
   the chain is STILL flagged (the real anachronism). Masking risk (a non-Companion mis-graded صحابي with a صحابي شيخ)
   is narrow — the residual صحابي resolutions are real Companions (ابن عباس→عبد الله بن عباس &c., verified). +1 test,
   341 green. Expect **S↓** (the صحابي-عن-صحابي class); measure on the next `audit_isnad`.
+- **★ MEASURED on `094c3b2` (all session fixes live; the user's main was STUCK at a232e64 for several runs — the
+  `git pull` MERGE kept aborting on a Windows-Defender lock of `.git/objects/00`; fixed with `gc.auto 0` +
+  `git merge --ff-only origin/main`):** **W 656 · S 620 · A 83,835** (84,807 chains · rijal 9,712). **S 1167→620
+  (−47% this run; −67% over the session from 1873)** — the صحابي-عن-صحابي exemption was the dominant residual (~547
+  legit Companion-from-Companion). **W 668→656** (المصلوب alias + bare-grave — the «كذاب في صحيح مسلم» class closed).
+  **A flat** (structural homonymy, honest uncertainty — settled). The wins this session are W/S (wrong verdicts);
+  A is not chased. Residual S (620) = mostly real anachronisms (a صحابي with a تابعي شيخ) — genuine review cases.
 
 **★ (2026-06-11, THIS SESSION). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
 fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**
