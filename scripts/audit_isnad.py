@@ -62,6 +62,19 @@ def _build_canon(settings, rijal: RijalIndex) -> Canonicalizer:
     return Canonicalizer(rijal, associations=profiles)
 
 
+def _name_compatible(cited: str, matched: str) -> bool:
+    """True if the cited surface is CONSISTENT with the man the grade was read from — every
+    content token of the citation appears in his full name.
+
+    A late «الحسن بن علي بن زياد» (an obscure شيخ absent from the rijal) carries «زياد», absent
+    from the Companion «الحسن بن علي بن أبي طالب» onto whose bare leading run «الحسن بن علي» it
+    collapsed: a different, more-specific man, so the «صحابي» (or «متروك») grade is not his —
+    don't flag it. A deeper-ancestor citation «عبد الله بن عمر بن الخطاب» stays compatible (الخطاب
+    IS in his name), as does a kunya citation of the same man."""
+    cited_toks = _clean_tokens(cited)
+    return not cited_toks or cited_toks <= _clean_tokens(matched)
+
+
 def _flag_chain(narrators: list[dict]) -> list[tuple[str, str]]:
     """Return (code, detail) anomalies for one analysed chain."""
     out: list[tuple[str, str]] = []
@@ -81,9 +94,12 @@ def _flag_chain(narrators: list[dict]) -> list[tuple[str, str]]:
         # match with disagreeing candidates (أبو إسحاق ↦ سعد الصحابي vs السبيعي الثقة; عثمان بن
         # أبي شيبة ↦ ثقة vs متروك) is undecided — it belongs in «مشترك», not a «صحابي»/«متروك» flag.
         certain = (not rij.get("ambiguous")) or rij.get("grade_agreed")
-        if grade == "صحابي" and i < n - _TWO_LAST and certain:
+        # …and the cited name must be CONSISTENT with the matched man — else a more-specific
+        # namesake (الحسن بن علي بن زياد) wrongly wears a short Companion's/متروك's grade.
+        compatible = _name_compatible(name, rij.get("name") or "")
+        if grade == "صحابي" and i < n - _TWO_LAST and certain and compatible:
             out.append(("S", f"«{name}» (الحلقة {i+1}/{n}) حُكم له «صحابي» وموضعه ليس آخر السند"))
-        if any(w in verdict for w in _WEAK) and len(name.split()) >= 3 and certain:
+        if any(w in verdict for w in _WEAK) and len(name.split()) >= 3 and certain and compatible:
             out.append(("W", f"«{name}» (اسمٌ كامل) حُكم له «{verdict}» — يُحتمل خلطٌ باسمٍ مشابه"))
         if rij.get("ambiguous"):
             alts = "، ".join(rij.get("alternatives") or [])

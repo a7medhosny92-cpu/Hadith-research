@@ -124,6 +124,36 @@ def test_ambiguous_match_is_held_not_graded_weak():
     assert "A" in codes and "W" not in codes               # belongs to «مشترك», not «متروك»
 
 
+def test_divergent_name_does_not_wear_a_short_namesakes_sahabi_grade():
+    # «الحسن بن علي بن زياد» (a late شيخ absent from the rijal) collapses onto the bare leading run
+    # «الحسن بن علي» of the Companion الحسن بن علي بن أبي طالب → graded «صحابي». It carries «زياد»,
+    # absent from the Companion's name, so it is a DIFFERENT man: the S flag must be suppressed.
+    from scripts.audit_isnad import _flag_chain, _name_compatible
+    assert not _name_compatible("الحسن بن علي بن زياد", "الحسن بن علي بن أبي طالب الهاشمي وقد صحبه")
+    assert _name_compatible("عبد الله بن عمر بن الخطاب", "عبد الله بن عمر بن الخطاب العدوي")  # deeper ancestor — ok
+    narrators = [
+        {"name": "محمد بن يحيى", "rijal": {"name": "محمد بن يحيى الذهلي", "grade": "ثقة"}},
+        {"name": "الحسن بن علي بن زياد",
+         "rijal": {"name": "الحسن بن علي بن أبي طالب", "grade": "صحابي"}},   # mid-chain, divergent
+        {"name": "سفيان", "rijal": {"name": "سفيان الثوري", "grade": "ثقة"}},
+        {"name": "أنس بن مالك", "rijal": {"name": "أنس بن مالك", "grade": "صحابي"}},
+    ]
+    assert "S" not in [c for c, _ in _flag_chain(narrators)]
+
+
+def test_compatible_sahabi_mid_chain_is_still_flagged_S():
+    # the guard must not silence a GENUINE mid-chain Companion: «أنس بن مالك» (cited) is consistent
+    # with the matched «أنس بن مالك الأنصاري», so the «صحابي في غير آخر السند» review flag stands.
+    from scripts.audit_isnad import _flag_chain
+    narrators = [
+        {"name": "حماد", "rijal": {"name": "حماد بن سلمة", "grade": "ثقة"}},
+        {"name": "أنس بن مالك", "rijal": {"name": "أنس بن مالك الأنصاري", "grade": "صحابي"}},
+        {"name": "علقمة", "rijal": {"name": "علقمة بن وقاص", "grade": "ثقة"}},
+        {"name": "عمر", "rijal": {"name": "عمر بن الخطاب", "grade": "صحابي"}},
+    ]
+    assert "S" in [c for c, _ in _flag_chain(narrators)]
+
+
 def test_ambiguous_candidates_that_agree_keep_their_grade():
     # «الليث بن سعد» appears twice (الكاشف + تقريب spellings of the same man), both ثقة. It's
     # مشترك for display, but the agreed grade is usable — the chain must NOT be held «يُتوقَّف».

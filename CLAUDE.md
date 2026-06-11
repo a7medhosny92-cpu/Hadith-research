@@ -112,7 +112,42 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
 **Focus:** cut wrong isnad verdicts in «التدقيق» by identifying the narrator from the chain — AND now also
 verify every **matn** (the new «تدقيق المتون»).
 
-**★ LATEST (2026-06-11, THIS SESSION cont.). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
+**★ LATEST (2026-06-11, THIS SESSION cont.). 2ND-GRAPH RUN MEASURED → matn I/G fixes + graph-unlock LANDED ·
+name-compatibility S/W guard added. On main, branch `claude/intelligent-bardeen-HAsrg`.**
+The user ran a full `update.bat` (pulled main with the 7 regex fixes + the I/G matn fixes; 2nd graph rebuild;
+LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 chains · rijal 9,712 · مهمل 24,737**:
+- **Isnad «التدقيق» — W 691 · S 1873 · A 83,717** (vs 5-fix run 686/2551/79,841). **S −26.6%** (the 2nd graph
+  rebuild UNLOCKED the graph-lag → «أبي إسحاق»→السبيعي: confirmed in the uploaded rijal — السبيعي now
+  «عمرو بن عبد الله … أبو إسحاق السبيعي» kunya «أبو إسحاق» · ثقة · †129, fix #2 «ويقال» recovered it). **A +4.9%
+  is the other face of the matn I-fix**: the re-split puts the recovered route narrators BACK into the isnad →
+  more (genuine-homonym) positions audited (honest holds, not mis-IDs).
+- **Matn «تدقيق المتون» — V 1384 · I 2641 · G 563 · Q 124** (vs first run V1375/I4307/G651/Q121). **I −38.7%**
+  (تحويل ح re-split) · **G −13.5%** (takhrīj-tail trim). Wins confirmed.
+- **Decomposed the uploaded `audit.json`/`rijal.jsonl` (reproduced the matcher in-container on the real rijal):**
+  - **S top now: «الحسن/الحسين بن علي + nisba» (الخلال †242, المعمري, بن زياد) ≈70/500** — late شيوخ ABSENT from
+    the rijal whose distinguishing tail matches NO entry, so `candidates()` collapses them onto the bare 2-token
+    leading run «الحسن بن علي» = the Companion grandson (الحسن بن علي بن أبي طالب, promoted صحابي by description)
+    → graded «صحابي» mid-chain. **«أبي إسحاق» ≈59/500 residual** (kunya collision, was ~990, −78% via the unlock;
+    canon still picks سعد in thin-company chains). «ابن عمر/عباس»/«أنس»/«محمود بن لبيد» = borderline-legit صحابي-عن-صحابي.
+  - **A top = genuine homonymy** (علي بن محمد ×52 = 4 real men · محمد بن يحيى ×30 · سفيان عيينة/ثوري ×26) + **teknonym
+    over-match** (أبي هريرة ×26 = the kunya pulls in 2 obscure محمد-named men beside الدوسي). The شيخ-only relaxation
+    IS active (مهمل 24,737 ≈ 2×) but only resolves a BARE ISM by شيخ — it does NOT touch the 2-token homonyms
+    («علي بن محمد») that dominate A. → A's lever is still context/coverage, not the relaxation alone.
+  - **Matn I residual (2641): ~62% chain-verb-at-START** («حدثني [صحابي] أنه شهد… أنه نهى…» secondary-صحابي
+    attribution — no «قال:»/quote, أنّ not «أنّ النبي» → re-split finds no boundary → **LLM `--mode chains` territory**);
+    **~18% «قال [name]: حدثنا [route]»** (tractable next regex peel); **~5% false positives** («جبريل أخبرني» = the
+    Prophet quoting, reported speech — flag_matn's `_CHAIN_VERB` is unanchored). **G residual (563)** partly AUDIT
+    false-positives («أخرجه الله» — flag_matn's `_EDITORIAL` is unguarded, unlike the extraction trim). V (1384) =
+    ultra-short answers («نعم»، «بعد الوضوء») — calibrate the word-count threshold.
+- **★ FIX THIS SESSION — name-compatibility S/W guard** (`scripts/audit_isnad._name_compatible`, gates S & W):
+  every content token of the CITED surface must appear in the MATCHED man's name (`_clean_tokens(cited) ⊆
+  _clean_tokens(matched)`), else a more-specific namesake («الحسن بن علي بن زياد») is wearing a short Companion's/
+  متروك's grade → don't flag. Validated on the real rijal (kills الخلال/المعمري/بن زياد; KEEPS «محمد بن سعيد بن
+  حسان»→المصلوب كذاب and the deeper-ancestor «عبد الله بن عمر بن الخطاب»). **Est. ~150/500 S-sample suppressed**
+  (≈ the الحسن/الحسين-بن-علي + concatenation-artifact class); +2 tests, 336 green. **WAITING ON THE USER: one
+  `update.bat`** → send `audit.json` + W/S/A to measure the S drop (and whether A/W move).
+
+**★ (2026-06-11, THIS SESSION). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
 fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**
 The user ran `update.bat` with the 5 fixes → **W 716→686 · S 2921→2551 (−12.7%) · A 82,394→79,841 (−3.1%)**;
 **chains 90,549→84,807 (−5,742 = the 3722 garbage GONE, fix #5)**; **muhmal 12,052→24,391 (×2 = the relaxation's
