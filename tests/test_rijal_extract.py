@@ -320,3 +320,23 @@ def test_kunya_not_taken_from_a_relative():
     assert _own_kunya("محمد بن أبي بكر الصديق التيمي") is None
     m = _own_kunya("محمد بن مسلم الزهري أبو بكر")
     assert m is not None and m.group(0) == "أبو بكر"
+
+
+def test_alternate_nasab_yuqal_does_not_truncate_kunya_and_nisba():
+    """تقريب interjects an ALTERNATE nasab mid-name — «… بن عبيد ويقال ابن علي ويقال ابن أبي شعيرة
+    … أبو إسحاق السبيعي». That «ويقال ابن …» run must be stripped (not used as a name boundary), so
+    the kunya + nisba survive; else «أبي إسحاق» can't reach أبو إسحاق السبيعي and falls to a صحابي
+    homonym (سعد بن أبي وقاص) — a large source of false «صحابي mid-chain» (S) flags."""
+    body = ("عمرو بن عبد الله بن عبيد ويقال ابن علي ويقال ابن أبي شعيرة الهمداني "
+            "أبو إسحاق السبيعي مشهور بكنيته ثقة مكثر عابد من الثالثة مات سنة تسع وعشرين ومائة")
+    (rec,) = list(iter_narrators([{"pg": 1, "text": "١- " + body}]))
+    assert "أبو إسحاق" in rec["name"] and "السبيعي" in rec["name"]
+    assert "يقال" not in rec["name"]                       # the «ويقال» connector must not leak in
+    assert rec["kunya"] == "أبو إسحاق"
+    assert classify(rec["grade"])[0] == "ثقة"
+    assert rec["death_year"] == 129
+
+
+def test_bare_qil_before_bio_is_dropped_not_kept():
+    # a bare «وقيل» before a bio word leaks no token: it's stripped, and the bio word ends the name.
+    assert _trim_name("فلان بن فلان البصري وقيل مات سنة عشرين ثقة") == "فلان بن فلان البصري"
