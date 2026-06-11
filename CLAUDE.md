@@ -187,6 +187,17 @@ LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 c
   stray verdict words). After: «سعد بن سعيد» → ambiguous (الأنصاري صدوق / المقبري لين) → HELD, not كذاب; المصلوب
   still reachable by his real name; kunya aliases exempt. Live in `RijalIndex.add` → effective on the next
   `audit_isnad` (no rijal rebuild). +1 test, 338 green. Expect **W↓** (fewer false كذاب/متروك). On main.
+- **★ SYSTEMATIC CONFLICT SWEEP («controlla tutti i narratori, chi va in conflitto») + the bare-grave HOLD fix.**
+  Swept all 9,620 rواة: grouped by ism+father (5,391 groups), found **67 grave-vs-trustworthy collisions**; of those
+  **61 already correctly HELD** (ambiguous → the chain says «لا أدري» not a guess — RIGHT), 4 ok, and only **2
+  DANGEROUS** (lookup confidently returns the grave → sinks sound chains): «إسحاق بن عمر» [متروك] & «يحيى بن عبيد»
+  [متروك] — both a BARE 2-token truncated grave entry out-ranking a fuller trustworthy namesake (إسحاق بن عمر بن
+  سليط الهذلي ثقة…). Only **3** bare-2-token grave entries exist (3rd = «أصبغ بن نباتة», a REAL متروك, no namesake —
+  must NOT be lost). Fix in `index._lookup` (`_GRAVE` set): when the chosen CONTAINMENT match is grave AND fuller,
+  better-graded partials also fit the bare citation → add them as alternatives → **HOLD (ambiguous, grade_agreed=
+  False)** so the grade-agreement gate never grades the chain متروك. A lone grave (أصبغ — no namesake) still
+  resolves. Re-swept: **DANGEROUS 2→0 · held 61→63.** Narrow (only fires for a grave contained match), live in
+  `_lookup`, +1 test, **339 green.** → the rijal is now CLEAN of grave-shadowing conflicts; W should drop further.
 
 **★ (2026-06-11, THIS SESSION). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
 fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**

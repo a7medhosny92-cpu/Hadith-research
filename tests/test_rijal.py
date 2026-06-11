@@ -105,6 +105,20 @@ def test_ibn_X_patronymic_does_not_match_the_eponym_named_X():
     assert rij.lookup("عمر بن الخطاب") is not None
 
 
+def test_a_bare_grave_namesake_does_not_sink_a_fuller_trustworthy_one():
+    # «إسحاق بن عمر» [متروك] (a bare, truncated entry) must NOT confidently grade a chain «ضعيف جدًا»
+    # when a fuller, trustworthy «إسحاق بن عمر بن سليط الهذلي» also fits the bare citation — hold instead.
+    rij = RijalIndex([
+        {"name": "إسحاق بن عمر", "grade": "متروك"},
+        {"name": "إسحاق بن عمر بن سليط الهذلي", "grade": "ثقة"},
+    ])
+    m = rij.lookup("إسحاق بن عمر")
+    assert m.ambiguous and not m.grade_agreed          # held, never a confident متروك verdict
+    # …but a LONE grave with no trustworthy namesake still resolves (he is genuinely weak)
+    rij2 = RijalIndex([{"name": "أصبغ بن نباتة التميمي", "grade": "متروك"}])
+    assert rij2.lookup("أصبغ بن نباتة").entry.category == "متروك"
+
+
 def test_a_flipped_name_alias_does_not_stamp_its_grade_on_a_namesake():
     # محمد بن سعيد المصلوب «قلبوا اسمه على وجوه» → a flipped form «سعد بن سعيد» was extracted as one of
     # his aliases; as an exact 2-token containment it must NOT out-rank the innocent سعد بن سعيد

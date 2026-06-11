@@ -70,6 +70,7 @@ def _clean_tokens(name: str) -> set[str]:
 # reverse-only (the chain has to cite the man BY it), never glued onto a longer, different
 # name that merely contains it: «أبو بكر بن أبي شيبة» (a حافظ) is not «أبو بكر» the Companion.
 _KUNYA_PARTICLES = {normalize_for_search("أبو"), normalize_for_search("أم")}
+_GRAVE = {"كذاب", "وضاع", "متروك", "متهم"}   # the gravest verdicts — must not shadow a sound namesake
 
 
 def _is_kunya_form(seq: list[str]) -> bool:
@@ -297,8 +298,15 @@ class RijalIndex:
             top = contained[0][0]
             group = [e for s, e in contained if s == top]
             best_e = group[0]
-            alternatives = [e.name for e in group if e.name != best_e.name]
-            agreed = all(e.category == best_e.category for e in group)
+            extra = [e for e in group if e.name != best_e.name]
+            # A SHORT grave exact-match must not confidently stamp a sound chain when a FULLER,
+            # better-graded namesake also fits the bare citation: «إسحاق بن عمر» [متروك] beside the
+            # fuller «إسحاق بن عمر بن سليط الهذلي» [ثقة] → hold (ambiguous) so the grade-agreement gate
+            # never grades the chain متروك. A lone grave (أصبغ بن نباتة — no namesake) still resolves.
+            if best_e.category in _GRAVE:
+                extra += [e for _c, _p, _ln, e in partial if e.category not in _GRAVE]
+            alternatives = [e.name for e in extra]
+            agreed = all(e.category == best_e.category for e in (best_e, *extra))
             return RijalMatch(best_e, 1.0, bool(alternatives), alternatives[:3], grade_agreed=agreed)
 
         if partial:
