@@ -70,6 +70,9 @@ Depth docs (NOT auto-loaded — open when relevant):
 - **`python -m scripts.sample_source <id> [--entries N|--find "name"|--pages A-B] --out f.txt`** →
   read-only sampler to study a *prose* rijal source before writing its extractor; downloads the book
   if absent; never touches rijal.jsonl. Ids: تهذيب الكمال 3722, تهذيب التهذيب 1278(دبي)/1293(الرسالة).
+- **`python -m scripts.find_book [title…]`** → read-only: find a turath book **id by title** from the cached
+  catalog (`data/raw/turath/catalog.json`), printing ready «--books <id>» lines for `scripts.ingest` — so we pick
+  a new رجال source without dumping the ~2 MB catalog into chat. Default args = the رجال/صحابة shortlist.
 - The user runs everything on their PC with `.venv\Scripts\python.exe`.
 
 ## Environment & data
@@ -122,6 +125,29 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
 ## Current work — KEEP UPDATED
 **Focus:** cut wrong isnad verdicts in «التدقيق» by identifying the narrator from the chain — AND now also
 verify every **matn** (the new «تدقيق المتون»).
+
+**★★ SESSION CONSOLIDATION (2026-06-11) — read this first; details in the dated entries below.**
+**State: main = `e1ac017`, branch aligned (ff-merges, NOT squash), 344 tests green, all pushed.** This session
+(measured on the user's real corpus, 84,807 chains · rijal 9,712):
+- **S 1873 → 620 (−67%)** · **W 691 → 656** · **A ~flat 83,835** (A is honest structural homonymy — measured: al-Jarḥ
+  network did NOT move it; we STOPPED chasing A's count, the wins are the wrong verdicts W/S). **Grave-shadow
+  collisions DANGEROUS 2→0** (the «كذاب في صحيح مسلم» class closed + the permanent `audit_conflicts` watchdog +
+  «تعارض الرجال» tab). **«غير معروف» 358 → 307** via the curated `companions.py` anchor.
+- **Fixes landed (each verified on real data, tested):** name-compat S/W guard · ابن-X eponym · صحابيٌّ-عن-صحابيّ
+  exemption · flipped-alias (المصلوب) · bare-grave hold · **X بن X collapse** · Companion-by-description +
+  high-status anchor (Companions→صحابي, major Tabiin→ثقة) · qwen2.5:3b extract model + `<think>` strip · matn I/G ·
+  the البنية Arabic diagram. **Bug-hunt sweep: the MATCHING is now clean** (collapse 0, self-match-failure 0,
+  grave-shadow 0); what remains is extraction noise + the genuinely-obscure «مجهول».
+- **★ IN-FLIGHT — DO NOT LOSE: the user is DOWNLOADING 10 رجال books to fill «مجهول»/coverage** (turath ids):
+  **96165** الثقات-non-Six · **5816** الثقات-ابن-حبان · **1692** ميزان · **9767** الإصابة (Companions) · **36357**
+  لسان-الميزان · **9351** الطبقات-الكبرى (+طبقة) · **1110** أسد-الغابة · **12288** الاستيعاب · **10490** معرفة-الصحابة-أبي-نعيم
+  · **5825** الثقات-للعجلي. **NEXT = write an extractor per book** (like `jarh_extract`/`tahdhib_extract`) + wire into
+  `build_graph`/`build_rijal`. **Order:** الإصابة 9767 (→ every صحابي out of «مجهول») → الثقات 96165/5816/5825 (→ثقة by
+  inclusion + network) → لسان-الميزان 36357 (the weak non-Six) → الطبقات 9351 (broad + طبقة, also the A-lever). New
+  helper **`scripts.find_book <title>`** locates ids from the cached catalog. **WAITING ON THE USER:** finish the
+  downloads → «fatto» → I sample each format (via Drive / `sample_source`) and write the first extractor.
+- **Also pending a `build_rijal`/`update.bat`:** the build-time fixes (`_COMPANION`, classify, `_drop_stale`, the
+  matn re-split) only fully apply on a re-parse; the matcher/anchor fixes are LIVE (effective on the next `audit_isnad`).
 
 **★ LATEST (2026-06-11, THIS SESSION cont.). 2ND-GRAPH RUN MEASURED → matn I/G fixes + graph-unlock LANDED ·
 name-compatibility S/W guard added. On main, branch `claude/intelligent-bardeen-HAsrg`.**
