@@ -105,6 +105,23 @@ def test_ibn_X_patronymic_does_not_match_the_eponym_named_X():
     assert rij.lookup("عمر بن الخطاب") is not None
 
 
+def test_a_flipped_name_alias_does_not_stamp_its_grade_on_a_namesake():
+    # محمد بن سعيد المصلوب «قلبوا اسمه على وجوه» → a flipped form «سعد بن سعيد» was extracted as one of
+    # his aliases; as an exact 2-token containment it must NOT out-rank the innocent سعد بن سعيد
+    # الأنصاري (a Muslim narrator) and stamp the forger's كذاب on a sound chain (→ «ضعيف جدًا»).
+    rij = RijalIndex([
+        {"name": "محمد بن سعيد بن حسان الأسدي المصلوب", "aliases": ["سعد بن سعيد"], "grade": "كذاب"},
+        {"name": "سعد بن سعيد بن قيس الأنصاري", "grade": "صدوق"},
+        {"name": "سعد بن سعيد المقبري", "grade": "لين الحديث"},
+    ])
+    m = rij.lookup("سعد بن سعيد")
+    assert m is not None and m.entry.category != "كذاب"        # the forger no longer wins this name
+    assert rij.lookup("محمد بن سعيد المصلوب").entry.category == "كذاب"   # …but is reachable by his own
+    # a KUNYA alias is exempt — still reverse-matchable
+    rij2 = RijalIndex([{"name": "محمد بن خازم الضرير", "aliases": ["أبو معاوية"], "grade": "ثقة"}])
+    assert rij2.lookup("أبو معاوية").entry.name == "محمد بن خازم الضرير"
+
+
 def test_a_complete_name_is_not_ambiguous_with_a_descendant_burying_it():
     # «محمد بن عبد الله بن جحش» (a صحابي) must NOT read «مشترك» with his descendant «إبراهيم بن محمد
     # بن عبد الله بن جحش» — the descendant merely carries the ancestor's nasab. When the query is

@@ -89,6 +89,19 @@ def _is_nasab_ref(name: str) -> bool:
     return bool(toks) and toks[0] in ("ابن", "بن")
 
 
+def _is_flipped_alias(alias: str, name_ism: str | None) -> bool:
+    """True when ``alias`` is a person-name whose ism differs from the entry's own — a «flipped» or
+    garbled alternate form that must NOT become a matchable identity.
+
+    محمد بن سعيد المصلوب «قلبوا اسمه على وجوه» → a flipped form «سعد بن سعيد» was extracted as an alias;
+    as an exact 2-token containment it then OUTRANKS the real سعد بن سعيد الأنصاري (a Muslim narrator)
+    and stamps the كذاب verdict on a sound chain. Most such aliases are extraction noise (ضبط notes,
+    truncated fragments, stray verdict words). A kunya alias (أبو/أم …) is exempt — it is matched
+    reverse-only and is a legitimate way to cite the man."""
+    a = _clean_seq(alias)
+    return bool(len(a) >= 2 and a[0] not in _KUNYA_PARTICLES and name_ism and a[0] != name_ism)
+
+
 def _order_ok(q_seq: list[str], f_seq: list[str], shared: set[str]) -> bool:
     """True if the shared tokens appear in the same relative order in both — so a query
     «يزيد بن جابر» does NOT match a form «جابر بن يزيد» (a different man)."""
@@ -221,7 +234,11 @@ class RijalIndex:
             # name/alias/kunya leading with أبو/أم) are kept apart and matched reverse-only:
             # a chain may cite a man BY his kunya (أبو هريرة), but a common kunya («أبو بكر»)
             # must NOT glue onto a fuller, different name that merely contains it.
-            forms = [s for s in (_clean_seq(f) for f in (entry.name, *entry.aliases)) if s]
+            # Drop «flipped-name» aliases (a different ism — an extraction/confusion artifact) so a
+            # man's garbled alternate form can't out-rank, and stamp its grade onto, a real namesake.
+            name_ism = next(iter(_clean_seq(entry.name)), None)
+            aliases = [a for a in entry.aliases if not _is_flipped_alias(a, name_ism)]
+            forms = [s for s in (_clean_seq(f) for f in (entry.name, *aliases)) if s]
             kunya_field = _clean_seq(entry.kunya) if entry.kunya else None
             reverse_only: list[list[str]] = []
             seen_ro: set[tuple[str, ...]] = set()

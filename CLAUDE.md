@@ -169,6 +169,24 @@ LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 c
   downloading 2170 (the independent multi-critic network, `_NETWORK_SOURCES = {3722, 2170}`) is the remaining A
   lever; turath.io was unreachable when update.bat tried — retry until `2170.json` lands in `data/raw/turath/`. The
   container CANNOT fetch turath books (turath.io blocked); the user re-runs the download.**
+- **★ al-Jarḥ MEASURED → the A NETWORK-LEVER is DISPROVEN.** The user downloaded 2170 (10.67 MB, complete),
+  ran `build_graph` (log: «الجرح والتعديل company merged for **2,386** narrators» + تهذيب 1,824) + `audit_isnad`:
+  **W 668 · S 1167 · A 83,793** (S −37.7% over the session ✅; A FLAT vs 83,717). Decomposed OLD vs NEW audit:
+  the A top is **IDENTICAL** (علي بن محمد 52→51 · محمد بن يحيى 30→29 · أبي هريرة 26→26 · سفيان 26→26). → al-Jarḥ
+  enriched BREADTH but did NOT touch the high-frequency homonyms that dominate A: they **share their شيوخ**, so
+  `canon._pick` still ties → held. **A is structural homonymy + honest uncertainty, NOT a coverage gap** — the
+  network lever (my hypothesis) is WRONG. Reducing A further = GUESSING (violates «لا يختلق»). → **stop chasing A's
+  count**; the wins are W/S (wrong verdicts). al-Jarḥ still enriches the رجال cards + future double-opinion.
+  S residual is now mostly **صحابيٌّ-عن-صحابيّ legit** (ابن عباس/عمر/أنس/محمود بن لبيد — the ابن-X fix now IDs the
+  famous son correctly, which trips S): a precision refinement (extend the penultimate-link exception), not an error.
+- **★ FIX — «flipped-name» aliases (a كذاب in صحيح مسلم!)** (`index._is_flipped_alias`, gates aliases in `add`):
+  the user hit a SOUND Muslim chain graded «ضعيف جدًا» because «سعد بن سعيد» (سعد الأنصاري, a Muslim narrator)
+  matched **محمد بن سعيد المصلوب (كذاب)** — the forger «قلبوا اسمه على وجوه», and one flip «سعد بن سعيد» was
+  extracted as his ALIAS → an exact 2-token containment that OUTRANKS the real namesakes. Drop an alias whose ism
+  differs from the entry's own (≥2 tokens, non-kunya) — 106/218 such aliases, ~all extraction noise (ضبط/fragments/
+  stray verdict words). After: «سعد بن سعيد» → ambiguous (الأنصاري صدوق / المقبري لين) → HELD, not كذاب; المصلوب
+  still reachable by his real name; kunya aliases exempt. Live in `RijalIndex.add` → effective on the next
+  `audit_isnad` (no rijal rebuild). +1 test, 338 green. Expect **W↓** (fewer false كذاب/متروك). On main.
 
 **★ (2026-06-11, THIS SESSION). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
 fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**
