@@ -72,6 +72,20 @@ def test_bare_ism_does_not_match_someone_elses_kunya():
     assert rij.lookup("أبو معمر").entry.name == "إسماعيل بن إبراهيم"
 
 
+def test_ibn_abi_X_is_the_descendant_not_the_kunya_grandfather():
+    # «ابن أبي مليكة» is the تابعي عبد الله بن عبيد الله بن أبي مليكة, NEVER his grandfather أبو مليكة
+    # (a صحابي). The «ابن» makes it a descendant reference, so the teknonym (reverse-kunya) match is
+    # suppressed — else the bare «ابن أبي مليكة» folds to the kunya «أبو مليكة» and grabs the wrong
+    # (صحابي) ancestor (a big source of false «صحابي mid-chain» flags).
+    rij = RijalIndex([
+        {"name": "زهير بن عبد الله", "kunya": "أبو مليكة", "grade": "صحابي"},
+        {"name": "عبد الله بن عبيد الله بن أبي مليكة", "grade": "ثقة"},
+    ])
+    assert rij.lookup("ابن أبي مليكة").entry.name == "عبد الله بن عبيد الله بن أبي مليكة"
+    # citing the grandfather BY his kunya (no «ابن») still reaches him — the teknonym is intact
+    assert rij.lookup("أبو مليكة").entry.name == "زهير بن عبد الله"
+
+
 def test_ambiguous_match_is_held_not_graded_weak():
     # «زيد بن علي» beside a متروك namesake AND a ثقة one is مشترك: we don't know which, so the
     # uncertain متروك must NOT make the chain «ضعيف جدًا» — it's held (يُتوقَّف) — nor be audit-W-ed.

@@ -79,6 +79,16 @@ def _is_kunya_form(seq: list[str]) -> bool:
     return len(seq) == 2 and seq[0] in _KUNYA_PARTICLES
 
 
+def _is_nasab_ref(name: str) -> bool:
+    """True when the citation is a bare «ابن …» / «ابن أبي …» — a DESCENDANT reference, not a kunya.
+    «ابن أبي مليكة» is عبد الله بن عبيد الله بن أبي مليكة (the تابعي known by that nasab), not his
+    grandfather أبو مليكة. So the teknonym (reverse-kunya) match is suppressed for it: otherwise the
+    bare «ابن أبي X» folds to the kunya «أبو X» (ابن dropped, أبي→أبو) and grabs the wrong — often
+    صحابي — ancestor (a major source of false «صحابي mid-chain» flags: ابن أبي مليكة، ابن أبي ذئب…)."""
+    toks = normalize_for_search(name).split()
+    return bool(toks) and toks[0] in ("ابن", "بن")
+
+
 def _order_ok(q_seq: list[str], f_seq: list[str], shared: set[str]) -> bool:
     """True if the shared tokens appear in the same relative order in both — so a query
     «يزيد بن جابر» does NOT match a form «جابر بن يزيد» (a different man)."""
@@ -86,7 +96,8 @@ def _order_ok(q_seq: list[str], f_seq: list[str], shared: set[str]) -> bool:
 
 
 def _score_entry(
-    query_seq: list[str], query: set[str], seqs: list[list[str]], kunya_seqs: list[list[str]]
+    query_seq: list[str], query: set[str], seqs: list[list[str]], kunya_seqs: list[list[str]],
+    *, teknonym: bool = True,
 ) -> tuple[int, tuple[int, bool, int] | None]:
     """Score one entry against the query.
 
@@ -126,8 +137,10 @@ def _score_entry(
         # else: neither contains the other → coincidental shared token(s), not a match
     # teknonyms identify a man only when the chain cites him BY the kunya: the query must
     # itself be a kunya («أبو …»/«أم …») AND lie within the form. A bare ism «معمر» is NOT the
-    # man whose kunya is «أبو معمر»; «حبيب بن أبي ثابت» is not the kunya «أبو ثابت».
-    if query_seq and query_seq[0] in _KUNYA_PARTICLES:
+    # man whose kunya is «أبو معمر»; «حبيب بن أبي ثابت» is not the kunya «أبو ثابت». Suppressed
+    # (``teknonym=False``) for a «ابن أبي …» citation: «ابن أبي مليكة» is the DESCENDANT (عبد الله بن
+    # عبيد الله), never the grandfather whose kunya is «أبو مليكة» — see `_is_nasab_ref`.
+    if teknonym and query_seq and query_seq[0] in _KUNYA_PARTICLES:
         for kseq in kunya_seqs:                      # only query ⊆ kunya (reverse)
             if query <= set(kseq) and _order_ok(query_seq, kseq, query):
                 offer(kseq)
@@ -244,11 +257,12 @@ class RijalIndex:
             return None
         if len(query) == 1 and query_seq[0] in _NON_IDENTIFYING:
             return None     # a bare kinship/connector particle — identifies no one
+        teknonym = not _is_nasab_ref(name)   # «ابن أبي X» is a descendant, not the kunya «أبو X»
 
         contained: list[tuple[int, RijalEntry]] = []                  # (specificity, entry)
         partial: list[tuple[int, bool, int, RijalEntry]] = []         # (cover, is_prefix, len, entry)
         for entry, seqs, kunya_seqs in zip(self._entries, self._form_seqs, self._kunya_seqs):
-            specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs)
+            specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs, teknonym=teknonym)
             if specificity:
                 contained.append((specificity, entry))
             elif best:
@@ -298,10 +312,11 @@ class RijalIndex:
         query = set(query_seq)
         if not query or (len(query) == 1 and query_seq[0] in _NON_IDENTIFYING):
             return []
+        teknonym = not _is_nasab_ref(name)   # «ابن أبي X» is a descendant, not the kunya «أبو X»
         contained: list[tuple[int, RijalEntry]] = []
         partial: list[tuple[int, bool, RijalEntry]] = []
         for entry, seqs, kunya_seqs in zip(self._entries, self._form_seqs, self._kunya_seqs):
-            specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs)
+            specificity, best = _score_entry(query_seq, query, seqs, kunya_seqs, teknonym=teknonym)
             if specificity:
                 contained.append((specificity, entry))
             elif best:
