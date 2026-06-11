@@ -150,7 +150,9 @@ LLM step skipped — gemma cloud weekly cap, non-fatal). New numbers, **84,807 c
   _clean_tokens(matched)`), else a more-specific namesake («الحسن بن علي بن زياد») is wearing a short Companion's/
   متروك's grade → don't flag. Validated on the real rijal (kills الخلال/المعمري/بن زياد; KEEPS «محمد بن سعيد بن
   حسان»→المصلوب كذاب and the deeper-ancestor «عبد الله بن عمر بن الخطاب»). **Est. ~150/500 S-sample suppressed**
-  (≈ the الحسن/الحسين-بن-علي + concatenation-artifact class); +2 tests, 336 green.
+  (≈ the الحسن/الحسين-بن-علي + concatenation-artifact class); +2 tests, 336 green. **★ MEASURED (audit-only re-run at
+  `911ebb8`, name-compat ONLY — ابن-X not yet pulled): S 1873→1245 (−33.5%) · W 691→635 (−8.1%) · A 83,717 flat** —
+  spot-on the estimate; the «الحسن بن علي + nisba» class is gone, A untouched (as designed).
 - **★ FIX 2 — «ابن X» patronymic must not match the eponym** (`index._score_entry`, new `nasab_ref` param; gates
   the partial `offer`): a citation literally starting with «ابن»/«بن» means X is a FATHER, so a leading
   (ism-position) match is wrong. **«ابن عمر» matched 134 men NAMED عمر** (lookup picked عمر بن الخطاب the eponym,
