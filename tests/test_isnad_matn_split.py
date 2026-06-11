@@ -156,3 +156,17 @@ def test_normal_qal_split_is_unaffected_by_the_anna_fallback():
         "حدثنا فلان أن أبا هريرة أخبره أن رسول الله ﷺ قال: من غشنا فليس منا")
     assert conf in ("phrase", "quote")
     assert "من غشنا فليس منا" in matn and "أخبره" not in matn
+
+
+def test_dual_qala_does_not_split_leaving_the_route_in_the_matn():
+    # «حدّثنا A وB قالا: حدّثنا [route] … أنّ النبيّ ﷺ matn» — the bare «قال» must NOT match the «قال»
+    # inside the dual «قالا» (the leftover «ا:» then blocked the route re-peel, dumping the whole
+    # secondary chain into the matn → the dominant «إسناد في المتن» / I case in Sunan Ibn Māja).
+    isnad, matn, _ = split_isnad_matn(
+        "حدثنا أبو بكر وعلي قالا: حدثنا عبد العزيز، عن زيد، عن عطاء، عن ابن عباس "
+        "أن رسول الله ﷺ مضمض واستنشق")
+    assert matn.startswith("رسول الله ﷺ") and "مضمض واستنشق" in matn
+    assert "عبد العزيز" in isnad and "حدثنا" not in matn      # the route stayed in the isnad
+    # the plural «قالوا:» as a genuine matn-introducer must still split
+    _, m2, _ = split_isnad_matn("حدثنا فلان عن أصحابه قالوا: نهى رسول الله ﷺ عن بيع الغرر")
+    assert m2 == "نهى رسول الله ﷺ عن بيع الغرر"

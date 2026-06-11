@@ -28,8 +28,12 @@ _INTRO = re.compile(
     r"(?:%s)\s*:" % "|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول"))
 )
 # Same speech-introducers, but WITHOUT requiring the colon (classical texts often omit it):
-# a last-resort boundary when no quote and no «… :» were found.
-_SAY = re.compile("|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول")))
+# a last-resort boundary when no quote and no «… :» were found. Each is anchored to a word END
+# (no Arabic letter follows) so bare «قال» never matches the «قال» INSIDE the dual «قالا:»/«قالوا:»
+# — «حدّثنا فلان وفلان قالا: حدّثنا [route]…» must not split at «قالا», leaving the route in the matn.
+_SAY = re.compile(
+    "(?:%s)(?![ء-ي])" % "|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول"))
+)
 # Transmission markers that prove a *chain* is present (so the text is not matn-only). Kept
 # distinctive on purpose: «نا/أنا» alone are too short (they hide inside ordinary words like
 # «الناس/وأنا»), so we rely on the unambiguous verbs and «عن » between spaces.

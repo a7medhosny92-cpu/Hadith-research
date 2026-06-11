@@ -73,6 +73,20 @@ Depth docs (NOT auto-loaded — open when relevant):
   can't regress a working split): split at the first post-isnad «أنّ» that isn't itself a link («أنّ فلان أخبره»),
   else take what follows the terminal authority — both leaving al-Ḥākim's back-references («وأما حديث…»، «بمعنى…»)
   matn-less. +5 tests, 349 green. **NEEDS A RE-PARSE to apply** (split runs at parse time).
+  **★ MEASURED (re-parse done, clean 86,391):** **V 1384→464 (−66%) · empty 1299→284 (−78%, ≈1015 matns recovered &
+  now searchable) · I 2641→2011 (−24%) · G 563→286 (−49%)**. I/G fell too because the wrapper's route-peel now
+  SUCCEEDS when the leaked inner body is «أنّ»-introduced (folds the route back → no longer «isnad-in-matn»);
+  verified «حدثنا … عن نافع أن ابن عمر كان يتوضّأ» → matn «أن ابن عمر كان يتوضّأ» CLEAN (was I). Residual V 464 =
+  genuine back-references + truncated sources + short legit answers («نعم»); I 2011 = «قال X: حدثنا [route]» +
+  secondary-صحابي «حدّثني [صحابي] أنه شهد» (LLM `--mode chains` territory).
+  **★ I-LEVER FIX (the dual «قالا»):** the dominant I (≈⅓, esp. Ibn Māja «ا: حدّثنا [route] أنّ النبيّ ﷺ
+  matn») was `_SAY`'s bare «قال» matching the «قال» INSIDE the dual «قالا:» of «حدّثنا A وB قالا: حدّثنا
+  [route]» — it split there, the leftover «ا:» blocked the route re-peel, and the whole secondary chain
+  stayed in the matn. Fix: anchor `_SAY` to a word END (`(?![ء-ي])`) so «قال» never matches «قالا/قالوا/
+  قالها»; the route then folds back and `_ANNA` recovers the body. +1 test, 350 green. **Needs a re-parse.**
+  Residual I after this = standalone back-reference chains «حدّثنا X عن Y مثله/نحوه» (corroborating isnads,
+  honestly matn-less — an exception candidate, not an error) + al-Bukhārī mu'allaqāt «وقال فلان: حدّثنا…» +
+  a few false positives («جبريل أخبرني» = the Prophet quoting — flag_matn's `_CHAIN_VERB` is unanchored).
 - **`python -m scripts.measure_dedup [--input f.jsonl]`** → read-only: how much of «مشترك» is the
   same man twice vs genuine homonymy.
 - **`python -m scripts.audit_conflicts [--cap N]`** → read-only: sweeps all رجال grouped by ism+father,
