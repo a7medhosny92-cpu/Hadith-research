@@ -147,6 +147,30 @@ with old `muhmal.json`**. 4 synthetic tests (يونس/الزهري resolves; hom
 precedence); **318 green**. **WAITING ON THE USER:** run `update.bat` (rebuilds `muhmal.json` *with* the
 relaxation) → send the new **W/S/A** to measure the A-drop vs 82,394.
 
+**★ AUDIT-DRIVEN FIX BATCH (2026-06-11, THIS SESSION cont.; on main, branch `claude/intelligent-bardeen-HAsrg`).**
+The user ran the lag-fixed baseline (**W 716 · S 2921 · A 82,394**, 90,549 chains · 9,786 rijal) and pasted the
+full «التدقيق». Investigating it against the real `rijal.jsonl`/`audit.json`/`muhmal.json` found + FIXED **5
+systematic bugs**, each verified + tested + **ff-merged to main** (so `update.bat` applies them):
+1. **شيخ-only relaxation** (`muhmal.py`) — the A lever (above). `[4f78406]`
+2. **«ويقال» name-truncation** (`rijal_extract._NAME_CUT`/`_ALT_NASAB`) — تقريب's alternate nasab «… بن عبيد
+   ويقال ابن علي … أبو إسحاق السبيعي» truncated the name, dropping kunya+nisba → أبو إسحاق السبيعي (a prolific
+   تابعي) was unreachable, so a chain's «أبي إسحاق» fell to the lone صحابي with that kunya (سعد بن أبي وقاص) =
+   the DOMINANT S pattern (≈229 in the 500-sample). Strip «(و)يقال ابن …»; السبيعي now keeps kunya+nisba. `[cdde14f]`
+3. **«ابن أبي X» → descendant, not the kunya grandfather** (`index._is_nasab_ref`) — «ابن أبي مليكة» folded to
+   the kunya «أبو مليكة» and grabbed the صحابي grandfather, not the تابعي عبد الله بن عبيد الله (ثقة فقيه).
+   Teknonym suppressed for «ابن …» citations (≈180 S: ابن أبي مليكة/ذئب/ليلى/رواد → now held, not صحابي). `[f65af07]`
+4. **ضبط pollution** (`rijal_extract._DABT`) — 726 names (7%) carried un-stripped vocalisation runs (بالتصغير،
+   بمهملتين، بالمعجمة، بينهما…), breaking matching + dedup. Broadened _DABT (dual/plural + «بال» forms) → 96% of
+   the leak removed on the real names. `[927bba6]`
+5. **stale 3722 in the index** (`parse._drop_stale`) — parse SKIPS تهذيب الكمال 3722 but never deleted a
+   `processed/3722.jsonl` left from before #103, so its ~8k tarjamas resurfaced as bogus «hadith» chains (the
+   «[3722]» W/A rows with 60-narrator concatenated names). Now deleted on skip. `[80eb54d]`
+**Expected:** S↓ a lot (#2+#3), A cut/cleaned (#1 relaxation + #4 dedup-unblock + #5 garbage gone), W↓ (#5 + #3
+held). **WAITING ON THE USER:** **one `update.bat`** (rebuilds rijal+graph+muhmal+audit with ALL 5) → send the
+new `rijal.jsonl`/`audit.json` + W/S/A vs **716/2921/82,394**; then I diff the recovered narrators (السبيعي &c.)
+and measure. Smaller S patterns still open: «الأشعث» ال-mismatch · «خرشة» ضبط-doppione/grade · borderline مخضرمون
+(محمود بن لبيد/الربيع، عنبسة — often legit صحابي عن صحابي).
+
 **★ (2026-06-10, large session → #145). THE MATN-EXTRACTION ARC + the regex-vs-LLM split, decided
 with a SAMPLE-DRIVEN method** (user extracts N real hadiths/book via `parse_book_file` → I run
 `split_isnad_matn` vs the real text, categorise the cuts, fix the clean ones / flag the hard ones → main).
