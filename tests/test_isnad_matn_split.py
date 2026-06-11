@@ -71,3 +71,14 @@ def test_wa_fi_albab_crossreference_is_trimmed():
         "حدثنا فلان قال: قال رسول الله ﷺ: لا ضرر ولا ضرار. وفي الباب عن أبي هريرة"
     )
     assert "لا ضرر ولا ضرار" in matn and "وفي الباب" not in matn
+
+
+def test_tahwil_secondary_chain_leaked_into_the_matn_is_re_split():
+    # «حدثنا [شيخ] قال: حدثنا [route] … قال <matn>» — the first split cuts after the شيخ's «قال:»,
+    # leaving the real route + body at the matn's head; the re-split folds the route back into the
+    # isnad and recovers the body (the dominant «إسناد في المتن» / I audit case = تحويل ح).
+    from app.parsing.isnad_matn import split_isnad_matn
+    text = "حدثنا أبو بكر قال: حدثنا أبو الزبير عن جابر أن رسول الله ﷺ قال إنما الماء من الماء"
+    isnad, matn, conf = split_isnad_matn(text)
+    assert matn == "إنما الماء من الماء"
+    assert "حدثنا أبو الزبير" in isnad and "حدثنا أبو الزبير" not in matn

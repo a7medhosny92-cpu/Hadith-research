@@ -145,9 +145,24 @@ def _quoted_spans(text: str) -> list[tuple[int, int]]:
 
 
 def split_isnad_matn(text: str) -> tuple[str, str, str]:
-    """Return ``(isnad, matn, confidence)`` — the matn with any trailing grade tail removed."""
+    """Return ``(isnad, matn, confidence)`` — the matn with its trailing grade tail removed and any
+    secondary chain (تحويل ح / a parallel route) that leaked into its HEAD folded back into the isnad.
+
+    A multi-route ḥadīth «… ح حدثنا أبو الزبير عن جابر أنّ رسول الله «…»» splits at the FIRST route's
+    boundary, leaving the later route(s) at the start of the matn. When the matn opens with a
+    transmission verb, re-split it: the recovered inner matn is the real body. Kept only if it yields
+    a non-empty body (never blanks a real matn)."""
     isnad, matn, conf = _split_isnad_matn(text)
-    return isnad, _trim_grade_tail(matn), conf
+    matn = _trim_grade_tail(matn)
+    for _ in range(3):                              # peel each leaked route («… ح … ح …»)
+        if not _CHAIN_AHEAD.match(matn):
+            break
+        isnad2, matn2, _c = _split_isnad_matn(matn)
+        matn2 = _trim_grade_tail(matn2)
+        if not matn2 or matn2 == matn:             # no real body recovered → keep what we had
+            break
+        isnad, matn = f"{isnad} {isnad2}".strip(), matn2
+    return isnad, matn, conf
 
 
 def _split_isnad_matn(text: str) -> tuple[str, str, str]:
