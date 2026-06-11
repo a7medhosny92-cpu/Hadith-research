@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 import time
 from collections import Counter
@@ -134,6 +135,9 @@ def main() -> None:
 
     counts: Counter[str] = Counter()
     cases: dict[str, list[dict]] = {"P": [], "S": [], "W": [], "A": []}
+    a_names: Counter[str] = Counter()          # «مشترك» ranked view: cited name → how often it's ambiguous
+    a_cands: dict[str, str] = {}               # …and its candidate list (the «مشترك بين: …» tail), once
+    _NAME = re.compile(r"«([^»]+)»")
     scanned = 0
     for rid, coll, num, isnad in rows:
         scanned += 1
@@ -142,6 +146,11 @@ def main() -> None:
         a = analyze_isnad(isnad, rijal=rijal, canon=canon, muhmal=muhmal)
         for code, detail in _flag_chain(a.narrators):
             counts[code] += 1
+            if code == "A":
+                m = _NAME.search(detail)
+                if m:
+                    a_names[m.group(1)] += 1
+                    a_cands.setdefault(m.group(1), detail.split("مشترك بين:", 1)[-1].strip())
             if len(cases[code]) < args.cap:
                 cases[code].append({"id": rid, "collection": coll, "number": num, "detail": detail})
     con.close()
@@ -153,6 +162,10 @@ def main() -> None:
         "counts": {c: counts[c] for c in ("P", "W", "S", "A")},
         "labels": _LABEL,
         "cases": cases,
+        # the «مشترك» names ranked by how often they are ambiguous — the review/«قارن» list (a high
+        # count on a SPECIFIC name betrays an over-match bug; a famous one held among many = genuine).
+        "a_ranked": [{"name": nm, "count": ct, "candidates": a_cands.get(nm, "")}
+                     for nm, ct in a_names.most_common(400)],
     }
     out_path = settings.data_dir / "audit.json"
     out_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")

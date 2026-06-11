@@ -56,6 +56,9 @@ Depth docs (NOT auto-loaded — open when relevant):
   (precedence `--model` > `--engine` > `llm_extract_model`).
 - **`python -m scripts.audit_isnad`** → rescans all chains → `data/audit.json` (the «التدقيق» tab).
   **Run by update.bat as its final step** (so a plain update refreshes W/S/A); also runnable standalone.
+  audit.json also carries **`a_ranked`** = the «مشترك» names ranked by how often they're ambiguous (+ candidates);
+  the «التدقيق» A section renders this list (high count on a SPECIFIC name = over-match bug; famous-among-many =
+  honest homonymy) with a **«قارن»** button → the «راوٍ» tab to compare the candidates (grade·death·nisba) side by side.
 - **`python -m scripts.audit_matn`** → rescans every matn → `data/matn_audit.json` (the «تدقيق المتون» tab):
   flags V (empty/fragment) · I (isnad-in-matn) · G (grade/takhrij tail) · Q (verse/heading). Logic in
   `app.parsing.matn_audit.flag_matn`. **Also run by update.bat** (after audit_isnad); runnable standalone (needs

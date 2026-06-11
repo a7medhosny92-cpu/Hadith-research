@@ -1498,6 +1498,16 @@ async function renderAudit(){
     if(!total) return;
     const cases = (d.cases || {})[code] || [];
     html += `<div class="comp-head">${esc((d.labels || {})[code] || code)} <span class="simbadge">(${total})</span></div>`;
+    if(code === "A" && (d.a_ranked || []).length){
+      html += `<div class="note">الأسماءُ «المشتركة» مرتّبةً بعددِ مرّاتِ التباسِها: عددٌ كبيرٌ على اسمٍ بعينه يكشفُ خطأَ مطابقة (اسمٌ مشهورٌ مُلتبسٌ بين عشرات)، بينما اسمٌ بين قِلّةٍ = تشابهٌ حقيقيّ. «قارن» يفتحُ تبويبَ «راوٍ» لتمييزِهم جنبًا إلى جنب (بالدرجة والوفاة والنسبة).</div>`;
+      d.a_ranked.forEach(r => {
+        html += `<div class="rawi-item audit-head">`
+          + `<span>«${esc(r.name)}» <span class="r-era">${esc(r.candidates)}</span></span>`
+          + `<span class="simbadge">×${r.count}&nbsp; <button class="tool go-narrator" data-q="${esc(r.name)}">قارن ⟶</button></span>`
+          + `</div>`;
+      });
+      html += `<div class="comp-head" style="font-size:.92em;opacity:.85">الحالاتُ في سياقها <span class="simbadge">(انقر أيًّا لفتح إسنادِها)</span></div>`;
+    }
     cases.forEach(c => {
       const cite = [c.collection, (c.number != null ? "رقم " + c.number : null)].filter(Boolean).join("  ·  ");
       html += `<div class="audit-case" data-id="${c.id}">`
@@ -1629,6 +1639,16 @@ results.addEventListener("click", e => {
   q.value = t.getAttribute("data-q");
   document.querySelector('.modes button[data-mode="takhrij"]').click();  // switch tab (clears view)
   run();                                                                 // then run the takhrij
+});
+
+// «قارن ⟶» on a ranked «مشترك» name (التدقيق) → jump to the راوٍ tab to compare its candidates
+// side by side (grade · death · nisba), so the user distinguishes the homonyms or spots an over-match.
+results.addEventListener("click", e => {
+  const t = e.target.closest(".go-narrator");
+  if(!t) return;
+  q.value = t.getAttribute("data-q");
+  document.querySelector('.modes button[data-mode="narrator"]').click();
+  run();
 });
 
 // Audit (التدقيق): click a case to expand its hadith + chain + verdict IN PLACE (no
