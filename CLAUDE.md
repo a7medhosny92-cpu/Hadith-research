@@ -62,6 +62,10 @@ Depth docs (NOT auto-loaded — open when relevant):
   only `index.db`, seconds). Built 2026-06-11 to «verify every matn».
 - **`python -m scripts.measure_dedup [--input f.jsonl]`** → read-only: how much of «مشترك» is the
   same man twice vs genuine homonymy.
+- **`python -m scripts.audit_conflicts [--cap N]`** → read-only: sweeps all رجال grouped by ism+father,
+  finds **grave↔trustworthy name collisions**, and flags **DANGEROUS** (lookup confidently grades the grave
+  → sinks a sound chain, the «كذاب في صحيح مسلم» class) vs **held** (ambiguous, correct) → `data/conflicts.json`.
+  A clean run is DANGEROUS = 0; run after any rijal change to catch new collisions.
 - **`python -m scripts.sample_source <id> [--entries N|--find "name"|--pages A-B] --out f.txt`** →
   read-only sampler to study a *prose* rijal source before writing its extractor; downloads the book
   if absent; never touches rijal.jsonl. Ids: تهذيب الكمال 3722, تهذيب التهذيب 1278(دبي)/1293(الرسالة).

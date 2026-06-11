@@ -42,3 +42,18 @@ def test_parse_drops_stale_rijal_output(tmp_path):
     assert _drop_stale(out_dir, sharh_dir, 3722) is True
     assert not (out_dir / "3722.jsonl").exists()
     assert _drop_stale(out_dir, sharh_dir, 3722) is False   # idempotent — nothing left to drop
+
+
+def test_audit_conflicts_holds_a_grave_trust_collision():
+    # The رجال conflict sweep must (a) ignore a lone grave / unrelated names, and (b) report a
+    # grave↔trustworthy collision as HELD — never DANGEROUS — now that _lookup holds it ambiguous.
+    from scripts.audit_conflicts import sweep
+    from app.rijal import RijalIndex
+    rij = RijalIndex([
+        {"name": "سعيد بن مرة", "grade": "متروك"},          # bare grave …
+        {"name": "سعيد بن مرة الكوفي", "grade": "ثقة"},      # … shadowed by a fuller trustworthy namesake
+        {"name": "زيد بن خالد الجهني", "grade": "صحابي"},    # unrelated — not a collision
+    ])
+    res = sweep(rij)
+    assert not res["dangerous"]        # the _lookup hold fix means none sink a chain
+    assert res["held"] == 1            # the «سعيد بن مرة» collision is held ambiguous (correct)
