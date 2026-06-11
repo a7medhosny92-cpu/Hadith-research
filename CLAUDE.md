@@ -51,6 +51,10 @@ Depth docs (NOT auto-loaded — open when relevant):
   pins any litellm id (precedence `--model` > `--engine` > `llm_extract_model`).
 - **`python -m scripts.audit_isnad`** → rescans all chains → `data/audit.json` (the «التدقيق» tab).
   **Run by update.bat as its final step** (so a plain update refreshes W/S/A); also runnable standalone.
+- **`python -m scripts.audit_matn`** → rescans every matn → `data/matn_audit.json` (the «تدقيق المتون» tab):
+  flags V (empty/fragment) · I (isnad-in-matn) · G (grade/takhrij tail) · Q (verse/heading). Logic in
+  `app.parsing.matn_audit.flag_matn`. **Also run by update.bat** (after audit_isnad); runnable standalone (needs
+  only `index.db`, seconds). Built 2026-06-11 to «verify every matn».
 - **`python -m scripts.measure_dedup [--input f.jsonl]`** → read-only: how much of «مشترك» is the
   same man twice vs genuine homonymy.
 - **`python -m scripts.sample_source <id> [--entries N|--find "name"|--pages A-B] --out f.txt`** →
@@ -100,9 +104,41 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
-**Focus:** cut wrong isnad verdicts in «التدقيق» by identifying the narrator from the chain.
+**Focus:** cut wrong isnad verdicts in «التدقيق» by identifying the narrator from the chain — AND now also
+verify every **matn** (the new «تدقيق المتون»).
 
-**★ LATEST (2026-06-10, continued → THIS SESSION). FULL-CORPUS REBUILD MEASURED + the شيخ-only relaxation
+**★ LATEST (2026-06-11, THIS SESSION cont.). 5-FIX RUN MEASURED → the GRAPH-LAG throttle found · buried-ancestor
+fix · MATN AUDIT built. On main, branch `claude/intelligent-bardeen-HAsrg` (HEAD `81d08db`).**
+The user ran `update.bat` with the 5 fixes → **W 716→686 · S 2921→2551 (−12.7%) · A 82,394→79,841 (−3.1%)**;
+**chains 90,549→84,807 (−5,742 = the 3722 garbage GONE, fix #5)**; **muhmal 12,052→24,391 (×2 = the relaxation's
+`@`-keys, fix #1 active)**; rijal 9,786→9,723. Decomposed the uploaded rijal/audit:
+- **The fixes bit at the DATA level (verified):** السبيعي recovered «… أبو إسحاق السبيعي», kunya «أبو إسحاق»
+  (now a candidate of «أبي إسحاق»); **«ابن أبي مليكة» GONE from S (31→0)**; ضبط leak 810→31 (96%).
+- **★ KEY FINDING — the one-iteration GRAPH LAG throttles the DATA fixes.** «أبي إسحاق» is STILL 180 in S because
+  what *resolves* it at verdict is **`canon._pick`**, which reads the **graph company** (`narrators.db`), and
+  step-7 `build_graph` built that graph from the **pre-fix rijal** (السبيعي still truncated there). So a
+  **MATCHING** fix (#3 ابن أبي مليكة) acts immediately, but the **DATA** fixes (#1 relaxation, #2 السبيعي) need the
+  graph rebuilt from the new rijal. → **the next measurement is a 2nd run (`build_graph → build_rijal →
+  audit_isnad`)** — it unlocks «أبي إسحاق»→السبيعي and the relaxation's real A-drop. Smaller S still open: «الحسن
+  بن علي بن زياد» (containment), «عثمان» (bare ism→صحابي).
+- **Buried-ancestor fix** (`index.py::candidates`, `[81d08db]`): a COMPLETE name read «مشترك» with a
+  descendant/nephew/longer-form whose nasab buries the query non-leading (محمد بن عبد الله بن جحش ← إبراهيم بن محمد
+  بن… بن جحش; محمد بن مسلم بن شهاب الزهري ← ابن أخي الزهري). `candidates()` now drops a non-prefix partial when a
+  containment match exists (the query IS a complete man); `lookup` was already right (NO audit change) — this
+  cleans the «راوٍ» explorer + the chain candidate sets. A bare nisba «الزهري» still surfaces all its bearers.
+- **★ MATN AUDIT — NEW subsystem** (`app/parsing/matn_audit.flag_matn` + `scripts.audit_matn`, `[61b5ae6]`): the
+  متن counterpart of `audit_isnad`, to «verify every matn» (the user's directive). Scans every matn in index.db,
+  flags **V** (empty/fragment + body-in-isnad — the «detti non completi») · **I** (a narration verb / leading
+  «عن فلان» in the matn) · **G** (grade/takhrij tail) · **Q** (verse-only ﴿…﴾ or باب/كتاب heading) →
+  `data/matn_audit.json` (the «تدقيق المتون» tab — **UI tab still TBD**). Wired into `update.bat` after the isnad
+  audit. High-precision (إنما الأعمال بالنيات does NOT flag; al-Mustadrak #7514 «ادع تلك الشجرة» → V). V's
+  word-count thresholds are the knob to calibrate on the real distribution.
+**WAITING ON THE USER (must `git pull` main first — the matn-audit + buried-ancestor merged AFTER the last
+update, hence «No module named scripts.audit_matn»):** **(a)** the **2nd graph rebuild** → new W/S/A (unlock the
+throttled fixes); **(b)** run **`scripts.audit_matn`** → send `matn_audit.json` → I calibrate V's thresholds,
+then attack the matn causes (regex fixes + LLM `--mode chains` on the residual) and add the «تدقيق المتون» UI tab.
+
+**★ (2026-06-10, continued → THIS SESSION). FULL-CORPUS REBUILD MEASURED + the شيخ-only relaxation
 validated on REAL data. Analysis + plan, NO code yet; on branch `claude/intelligent-bardeen-HAsrg`.**
 The user ran `update.bat` to completion **with the LLM chains pass** (#142–#145 regex + LLM re-seg of the
 flagged ~10%) and uploaded the real `rijal.jsonl` + `audit.json` + `muhmal.json`; I decomposed them in-container.
