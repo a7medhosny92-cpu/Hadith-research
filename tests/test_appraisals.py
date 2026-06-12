@@ -1,0 +1,27 @@
+"""Tests for named-critic appraisal extraction (app.parsing.appraisals)."""
+from __future__ import annotations
+
+from app.parsing.appraisals import extract_appraisals
+
+
+def test_named_critics_with_verdicts():
+    body = ("بَشِيرُ بنُ كَعْبٍ العَدَوِيُّ، رَوَى عَن أبي الدَّرْدَاءِ، رَوَى عَنه قَتَادَةُ. "
+            "قَالَ عَلِيُّ بنُ المَدِينِيِّ: ثِقَةٌ ثَبْتٌ. وَقَالَ يَحْيَى بنُ مَعِينٍ: لا بَأْسَ بِهِ. "
+            "وَذَكَرَهُ ابنُ حِبَّانَ في الثِّقَاتِ. وَوَثَّقَهُ النَّسَائِيُّ.")
+    by = {a["critic"]: a["verdict"] for a in extract_appraisals(body)}
+    assert by["ابن المديني"].startswith("ثقة")
+    assert by["ابن معين"] == "لا بأس به"
+    assert by["ابن حبان"] == "ذكره في الثقات"
+    assert by["النسائي"] == "وثّقه"
+
+
+def test_non_critic_and_ungraded_are_dropped():
+    # an isnad narrator (not a critic) and a biographical aside (no grade) are not appraisals
+    body = "قَالَ مُحَمَّدُ بنُ عَبدِ اللهِ: حَدَّثَنَا سُفْيَانُ. وَقَالَ أَبُو حَاتِمٍ: كَانَ يَسْكُنُ الكُوفَةَ."
+    assert extract_appraisals(body) == []
+
+
+def test_one_entry_per_critic():
+    body = "قَالَ أَبُو حَاتِمٍ: ثِقَةٌ. وَقَالَ أَبُو حَاتِمٍ: لا بَأْسَ بِهِ."
+    aps = extract_appraisals(body)
+    assert len(aps) == 1 and aps[0]["critic"] == "أبو حاتم الرازي" and aps[0]["verdict"] == "ثقة"
