@@ -29,6 +29,7 @@ from app.config import get_settings
 from app.ingestion.catalog import RIJAL_SOURCES, Catalog
 from app.ingestion.downloader import CorpusDownloader
 from app.ingestion.turath_client import TurathClient
+from app.parsing.isaba_extract import ISABA_BOOK_ID, parse_isaba_file
 from app.parsing.rijal_extract import parse_rijal_file
 from app.rijal.dedup import CorpusCompany, collapse_duplicates
 from app.rijal.grades import classify
@@ -103,7 +104,8 @@ def _add_opinion(record: dict, source: str, grade_raw: str) -> None:
         ops.append(op)
 
 
-def merge_source(primary: list[dict], secondary: list[dict]) -> tuple[list[dict], int, int]:
+def merge_source(primary: list[dict], secondary: list[dict],
+                 fill_gaps: bool = True) -> tuple[list[dict], int, int]:
     """Fold a *secondary* رجال source (e.g. الكاشف) into ``primary`` (تقريب, the
     authority) without ever creating a duplicate — which would make a shared name look
     مشترك. A secondary record is used only to:
@@ -111,7 +113,11 @@ def merge_source(primary: list[dict], secondary: list[dict]) -> tuple[list[dict]
       * **grade** a primary narrator that primary left ungraded (al-Dhahabi fills a gap), or
       * **add** a narrator that primary doesn't have at all.
 
-    Records the secondary book itself leaves ungraded are skipped (no value). Returns
+    Records the secondary book itself leaves ungraded are skipped (no value). With
+    ``fill_gaps=False`` the source is **add-only**: a record that confidently matches an
+    EXISTING man is dropped untouched (no opinion, no gap-fill) — for a source whose
+    population differs from the Six Books (الإصابة's Companions), where a confident name
+    match may still be a DIFFERENT man wearing the same name. Returns
     ``(records, added, upgraded)``."""
     seed_index = RijalIndex(load_seed())
     index = RijalIndex(primary)
@@ -124,6 +130,8 @@ def merge_source(primary: list[dict], secondary: list[dict]) -> tuple[list[dict]
             continue
         match = index.lookup(record["name"])
         if match and match.score >= 1.0 and not match.ambiguous:
+            if not fill_gaps:
+                continue                                 # already known — leave him untouched
             existing = by_name.get(match.entry.name)
             if existing is None:
                 continue
@@ -154,7 +162,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if not args.no_download:
-        asyncio.run(_ensure_downloaded(args.books))
+        asyncio.run(_ensure_downloaded(args.books + [ISABA_BOOK_ID]))
 
     books_dir = settings.raw_dir / "books"
     extracted: list[list[dict]] = []   # one list per source, in order (first = authority)
@@ -178,6 +186,16 @@ def main() -> None:
     for records in extracted[1:]:
         result, added, upgraded = merge_source(result, records)
         print(f"  merged a secondary source: +{added} new narrators, {upgraded} gaps graded")
+
+    # الإصابة في تمييز الصحابة — gated on the downloaded book. Ibn Ḥajar's أقسام I/II (whose
+    # صحبة he established) become graded Companions, pulling real صحابة out of «غير معروف»;
+    # أقسام III (مخضرمون) / IV (وهم) are skipped by the extractor. ADD-ONLY (fill_gaps=False):
+    # a confident match to an existing man is left untouched — the populations differ, so an
+    # obscure Companion sharing a Six-Books narrator's name must not stamp him «صحابي».
+    isaba_path = books_dir / f"{ISABA_BOOK_ID}.json"
+    if isaba_path.exists():
+        result, added, _ = merge_source(result, parse_isaba_file(isaba_path), fill_gaps=False)
+        print(f"  merged الإصابة (أقسام 1-2): +{added} صحابة")
 
     # optional: fold in the LLM-extracted رجال (scripts.build_rijal_llm) — better grades and the
     # death/kunya the terse regex drops. Gated on the file, so the pipeline is unchanged without it.

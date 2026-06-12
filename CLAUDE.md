@@ -117,8 +117,9 @@ Depth docs (NOT auto-loaded — open when relevant):
   `data/rijal.jsonl`) when a measurement needs them.
 - turath.io is often **unreachable from here** → can't rebuild the corpus in the container; the user
   runs heavy steps on their machine. Catalog cached at `data/raw/turath/catalog.json`.
-- **★ SHARED GOOGLE DRIVE FOLDER (the user's, persistent across sessions — given 2026-06-11):**
-  https://drive.google.com/drive/folders/1CFX4zxFlYv61G411gpRT9ubDAToMgVlu — the user drops the
+- **★ SHARED GOOGLE DRIVE FOLDER (the user's, persistent across sessions — CURRENT link re-given
+  2026-06-12, REPLACES the older 1CFX4… one):**
+  https://drive.google.com/drive/folders/1Jbj-bZ4FGi6Kq0HZwrzYgGYadBkDyJhP — the user drops the
   real measurement files here (`rijal.jsonl`, `audit.json`, `matn_audit.json`, `muhmal.json`, books).
   **Fetch them via the `Google_Drive` MCP** (`search_files` by title → `download_file_content` by id),
   so a session can pull the latest data WITHOUT waiting for a manual chat upload. (Big files >~20 MB
@@ -190,6 +191,21 @@ verify every **matn** (the new «تدقيق المتون»).
   inclusion + network) → لسان-الميزان 36357 (the weak non-Six) → الطبقات 9351 (broad + طبقة, also the A-lever). New
   helper **`scripts.find_book <title>`** locates ids from the cached catalog. **WAITING ON THE USER:** finish the
   downloads → «fatto» → I sample each format (via Drive / `sample_source`) and write the first extractor.
+  **★ الإصابة EXTRACTOR BUILT (2026-06-12, `app/parsing/isaba_extract.py` + wired in `build_rijal`).**
+  Key insight (from `scripts.peek_isaba` on the real book): `indexes.headings` (13,854) carries the WHOLE
+  structure — every tarjama IS a heading («٨٢٠٣- مقسم بن بجرة») under its «حرف …»/«القسم …» headings — so the
+  extractor reads HEADINGS ONLY (state machine: حرف opens at قسم 1; قسم heading switches; combined headings
+  «الثاني والثالث» take the MOST RESTRICTIVE; the muqaddima never matches since it precedes the first حرف).
+  **قسم I/II → {"name", grade:"صحابي"}; قسم III (مخضرمون)/IV (وهم) SKIPPED** (ابن حجر's own تمييز). Junk guards:
+  single-token names (would containment-match every namesake), relational heads (امرأة من بني…/ابن…), «آخر» tags,
+  bracketed footnotes. Wired GATED in `build_rijal` (after الكاشف, before LLM): **add-only `merge_source(...,
+  fill_gaps=False)`** — a confident match to an EXISTING man is left untouched (populations differ: an obscure
+  Companion sharing a Six-Books narrator's name must NOT stamp him «صحابي»); only genuinely-new names are added.
+  `_ensure_downloaded` now also fetches 9767. +5 tests, 358 green. Docs updated (المنهجية أعلام card, التقنية
+  pipeline, البنية improvements + SVG box «التقريب · الكاشف · الإصابة»). **WAITING ON THE USER:** run
+  `build_rijal --no-download` (book already on disk) → expect «merged الإصابة (أقسام 1-2): +N صحابة» (N likely
+  thousands) → then `audit_isnad` for W/S/A + the «غير معروف» count; full effect (graph company) on the next
+  `update.bat`. **NEXT extractors:** الثقات 96165/5816/5825 (→ثقة by inclusion) → لسان الميزان 36357 → الطبقات 9351.
   **★ NOW SKIPPED FROM THE HADITH PARSE (2026-06-11):** once downloaded, `scripts.parse` read all 10 as hadith →
   **+26k bogus matn-less «hadith»** (V/empty exploded 1299→4312, scanned 86k→112k). FIXED by adding all 10 to
   **`RIJAL_PROSE_BOOKS`** (`app/ingestion/catalog.py`) so parse skips them (+ `_drop_stale` removes their stale
