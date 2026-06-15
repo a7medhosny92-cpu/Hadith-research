@@ -312,7 +312,8 @@ def analyze_isnad(
                     # ابن عبد الحميد الثقة, not البجلي الصحابي). The penultimate link is left alone —
                     # there a younger Companion legitimately narrates from an older one (صحابي عن
                     # صحابي: «ابن عباس عن عمر», «أنس عن عبادة»).
-                    other = [c for c in rijal.candidates(narrator.name) if c.category != "صحابي"]
+                    other = [c for c in rijal.candidates(narrator.name, apply_prominence=False)
+                             if c.category != "صحابي"]
                     if other:
                         from app.rijal.index import RijalMatch
                         cats = {c.category for c in other}

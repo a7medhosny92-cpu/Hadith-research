@@ -311,3 +311,20 @@ def test_tahwil_seam_is_not_a_link():
     pairs = [(l["from"], l["to"]) for l in continuity(a.narrators, _G())["links"]]
     assert ("شعبة", "محمد") not in pairs        # the ح seam is not a link
     assert ("محمد", "منصور") in pairs           # the route-2 link is intact
+
+
+def test_prominence_does_not_force_a_sahabi_mid_chain():
+    """The prominence prior resolves a bare «جابر» to the prolific Companion — but mid-chain that would be a
+    false «صحابي» (there it is usually the تابعي جابر الجعفي). The deep-صحابي demotion sees the FULL candidate
+    set (apply_prominence=False) and picks the non-صحابي; the terminal link still gets the Companion."""
+    from app.rijal.index import RijalIndex
+    idx = RijalIndex([
+        {"name": "جابر بن عبد الله الأنصاري", "grade": "صحابي", "source": "تقريب التهذيب (رقم 8609)"},
+        {"name": "جابر بن يزيد الجعفي", "grade": "ضعيف", "source": "تقريب التهذيب (رقم 8609)"},
+    ])
+    idx.set_prominence({"جابر بن عبد الله الأنصاري": 5000, "جابر بن يزيد الجعفي": 500})
+    deep = analyze_isnad("حدثنا قتيبة عن سفيان عن جابر عن الشعبي عن مسروق عن النبي صلى الله عليه وسلم قال كذا",
+                         rijal=idx)
+    assert next(n for n in deep.narrators if n["name"] == "جابر")["rijal"]["grade"] == "ضعيف"
+    term = analyze_isnad("حدثنا قتيبة عن أبي الزبير عن جابر عن النبي صلى الله عليه وسلم قال كذا", rijal=idx)
+    assert term.narrators[-2]["rijal"]["grade"] == "صحابي"
