@@ -423,7 +423,8 @@ class RijalIndex:
 
         return None
 
-    def candidates(self, name: str, *, max_results: int | None = 40) -> list[RijalEntry]:
+    def candidates(self, name: str, *, max_results: int | None = 40,
+                   apply_prominence: bool = True) -> list[RijalEntry]:
         """The distinct known men who could be ``name`` — the homonym set for context-based
         تمييز المهمل («the chain before the name»).
 
@@ -481,7 +482,10 @@ class RijalIndex:
         # chain chooses among (the terminal-صحابي promotion in analyze_isnad reads this) when a real man is
         # present — «أبي هريرة» is the Companion الدوسي, not a same-kunya محمد. Kept only when ALL are
         # coverage. Then the prominence prior drops a candidate far less narrated than the most prolific.
-        out = self._prefer_prominent(_prefer_non_coverage(out))
+        out = _prefer_non_coverage(out)
+        if apply_prominence:                          # …then the prominence prior, UNLESS the caller needs
+            out = self._prefer_prominent(out)         # the full set (the mid-chain صحابي-demotion seeking a
+        # تابعي homonym must still see the less-prolific man — see analyze_isnad).
         if max_results is not None and len(out) > max_results:
             return []
         return out
