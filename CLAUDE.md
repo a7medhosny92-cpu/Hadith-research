@@ -279,6 +279,24 @@ name consistency) + the ابن جريج shuhra-by-ancestor matching.
   below baseline), DANGEROUS 0, متون settled, network corruption ~0.7% (inert). Residual = the documented GAIN levers (غندر/محمد
   بن جعفر name-granularity shadow, ابن جريج shuhra-by-ancestor) + the الثقات `_NAME_END` bio-leak cleanup (~72 inert + descriptor
   tails) + the lone «علي بن موسى الرضا» mis-graded entry — all minor, none dangerous.
+  **★ UI/VERDICT fixes (review screenshots, #171):** (1) «وقال فلان» تعليق boundary — the soft-boundary check strips a leading
+  waw so «وقال الليث» (al-Bukhārī's تعليق) no longer glues onto الزهري (a corrupt graph node); audit_nodes' detector strips it too.
+  (2) `/verify-isnad` passes `split_conarrators=True` — a fused dual «قتيبة بن سعيد وعبد الله بن مسلمة»/«عروة وعمرة» is two MEN in
+  the user-facing verdict (أبو داود 2468 was held «يُتوقَّف» on a «غير معروف» fused node); the aggregate audit keeps it OFF. (3) the
+  «راوٍ» picker calls `candidates(apply_prominence=False)` — «عبد الله» shows ALL homonyms, not the two ابادلة the chain-time prior keeps.
+  **★★ غندر DIAGNOSED (the محمد بن جعفر A-shadow, ~2.4k) + the LAQAB lever FIXED.** The user's `frequencies()` dump was the smoking
+  gun: the corpus node **«محمد بن جعفر البزاز أبو جعفر المدائني» has freq 2415** while **غندر (محمد بن جعفر الهذلي … المعروف بغندر,
+  ت193, ثقة) has 203** — canon MIS-ATTRIBUTES غندر's ~2.4k narrations to البزاز (ت206, لين). Confirmed in the Drive
+  `documented_network.json`: شعبة's 161 documented تلاميذ include البزاز + a bare «محمد جعفر» but **NOT غندر**. So `canon._pick`
+  resolves «محمد بن جعفر عن شعبة» → البزاز (whose company has شعبة), and غندر — scattered across «محمد بن جعفر»/«غندر» nodes —
+  starves. NOT anachronism (البزاز ت206 vs شعبة ت160 = 46y, plausible). ROOT: غندر's تهذيب network entry doesn't attach to his
+  تقريب canonical because the laqab «غندر» wasn't unified. **The bug (`rijal_extract._aliases` line 303):** `name_like` required an
+  alias be ≥2 tokens OR an ال-nisba — so a one-word laqab «غندر/بندار/عارم/مسدد» (caught by «المعروف بـ») was DROPPED. **FIX:** keep a
+  single-token alias when distinctive (≥4 chars); the explicit cue + the `generic`/length guards keep out noise. +1 test, **421 green**.
+  General (every laqab-known narrator unifies). **NEEDS `build_rijal` + `build_graph` to apply** (re-extract aliases → غندر's تهذيب
+  network attaches → غندر enters شعبة's company → canon/prominence resolve «محمد بن جعفر عن شعبة» → غندر, his freq consolidates).
+  **WAITING ON THE USER:** rebuild → re-check `frequencies()` for غندر (should jump) + `audit_isnad` (محمد بن جعفر A should fall).
+  Caveat: البزاز may still compete in شعبة's company → if so, a prominence/طبقة tie-break is the follow-up.
 
 **★★★ (2026-06-12, THIS SESSION). الإصابة MEASURED → S REGRESSION DIAGNOSED + FIXED · الزهري-أخبره parsing
 bug · the parsing-bug HUNTER (6 leak classes fixed). On main, branch `claude/intelligent-bardeen-HAsrg`. 380 tests green.**

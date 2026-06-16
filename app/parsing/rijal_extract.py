@@ -300,7 +300,9 @@ def _aliases(body: str) -> list[str]:
             if len(words) >= 3:
                 break
         alias = _WS.sub(" ", " ".join(words)).strip(" -،")
-        name_like = len(alias.split()) >= 2 or (alias.startswith("ال") and len(alias) >= 4)
+        # a single-token laqab is kept when distinctive (≥4 chars) — «غندر»، «بندار»، «عارم»، «مسدد» —
+        # not only a nisba «الأعمش»; the explicit cue + the generic-name filter below keep out noise.
+        name_like = len(alias.split()) >= 2 or len(alias) >= 4
         generic = {normalize_for_search(t) for t in alias.split()} - {"بن", "ابن", ""} <= _GENERIC_NAME
         if name_like and not generic and 3 <= len(alias) <= 40 and not any(c.isdigit() for c in alias):
             out.append(alias)
