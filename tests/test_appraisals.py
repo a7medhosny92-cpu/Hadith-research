@@ -42,7 +42,8 @@ def test_merge_appraisals_attaches_by_name_and_carries_through():
     records = [{"name": "بشير بن كعب العدوي", "grade": "ثقة", "source": "تقريب التهذيب (رقم 8609)"}]
     prose = [{"name": "بشير بن كعب العدوي",
               "appraisals": [{"critic": "ابن معين", "verdict": "ثقة"}]}]
-    out, n = merge_appraisals(records, prose)
+    out, n = merge_appraisals(records, prose, book="تهذيب الكمال")
     assert n == 1
     card = RijalIndex(out).lookup("بشير بن كعب العدوي").to_dict()
     assert card["appraisals"][0]["critic"] == "ابن معين"
+    assert card["appraisals"][0]["book"] == "تهذيب الكمال"      # each verdict carries its reporting book

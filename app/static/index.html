@@ -166,6 +166,7 @@
   .r-lbl{color:var(--accent);font-weight:700;font-size:.92rem}
   .ruling{padding:3px 11px;border-radius:999px;font-size:.85rem}
   .r-era{opacity:.7;font-size:.78rem}
+  .r-book{opacity:.85;font-size:.74rem;color:#7a6a3a}
   .r-basis{opacity:.65;font-size:.76rem}
   .r-diverge{color:#b5701a;font-weight:700;font-size:.85rem}
   .r-info{cursor:help;opacity:.85}
@@ -901,13 +902,13 @@ function rijalAttribution(rij){
   return `<div class="rulings"><span class="r-lbl">الحكم ومصدره:</span>${parts}${diverge}</div>`;
 }
 // أقوال الأئمة — the NAMED multi-critic verdicts the great رجال books report (beyond ابن حجر/الذهبي's
-// distilled grade): «ثقة — ابن معين · لا بأس به — أبو حاتم · ذكره في الثقات — ابن حبان». From the prose
-// sources (الجرح/تهذيب/الثقات), attached to the man by name in build_rijal.
+// distilled grade): «ثقة — ابن معين · تهذيب الكمال». Each carries the critic AND the BOOK that reports
+// his verdict. From the prose sources (الجرح/تهذيب/الثقات/لسان), attached to the man by name in build_rijal.
 function rijalAppraisals(rij){
   if(!rij || !rij.appraisals || !rij.appraisals.length) return "";
   const parts = rij.appraisals.map(a =>
     `<span class="ruling ${rijalClass(a.verdict)}">${esc(a.verdict)}`
-    + ` <span class="r-era">— ${esc(a.critic)}</span></span>`).join("");
+    + ` <span class="r-era">— ${esc(a.critic)}${a.book ? ' <span class="r-book">· '+esc(a.book)+'</span>' : ''}</span></span>`).join("");
   return `<div class="rulings"><span class="r-lbl">أقوال الأئمة:</span>${parts}</div>`;
 }
 // Compact attribution for a chain row. When the critics agree it shows the author(s)
@@ -1550,7 +1551,7 @@ const TECH = [
     "hadith_extract._inherit_rimandi: in a book reading order, an empty-matn reference entry («…مثله / …نحوه / بهذا الإسناد / …بذلك») inherits the previous hadith matn (marked confidence «ref»), so the parallel narration is searchable by its text instead of showing blank.",
     "Together these recover the matn for entries (common in ʿilal works) where the splitter had left it inside the isnad field — restoring it to search, to the narrator graph (the matn no longer pollutes the chain), and to takhrij."]},
   {h:"Rijal database — app/rijal/index.py", p:[
-    "RijalEntry: name, aliases, kunya, grade_text, category, rank, death_year, source, opinions, appraisals. Matched on name + aliases + kunya. opinions = the book-level double opinion {source, grade} (ابن حجر via تقريب / الذهبي via الكاشف); appraisals = the NAMED أقوال الأئمة {critic, verdict} pulled from the PROSE sources by app.parsing.appraisals (a curated نقّاد list + a grade-word filter) and attached to the man by an unambiguous name match in build_rijal.merge_appraisals — shown in the «راوٍ» card under «أقوال الأئمة».",
+    "RijalEntry: name, aliases, kunya, grade_text, category, rank, death_year, source, opinions, appraisals. Matched on name + aliases + kunya. opinions = the book-level double opinion {source, grade} (ابن حجر via تقريب / الذهبي via الكاشف); appraisals = the NAMED أقوال الأئمة {critic, verdict, book} pulled from the PROSE sources by app.parsing.appraisals (a curated نقّاد list + a grade-word filter) and attached to the man by an unambiguous name match in build_rijal.merge_appraisals, each tagged with the BOOK that reports it (تهذيب الكمال/الجرح والتعديل/الثقات/لسان الميزان) — shown in the «راوٍ» card under «أقوال الأئمة» as «ثقة — ابن معين · تهذيب الكمال».",
     "lookup(name): containment-only — a match needs the entry's name inside the query (most specific wins, keeping a man distinct from his longer-named son), or the cited name to be a partial of the entry. Among partials a PREFIX form wins (the cited ism+nasab): «عدي بن حاتم» is عدي بن حاتم الطائي (صحابي), not عدي بن الفضل … أبو حاتم (where حاتم only appears later, in a kunya); equally-good readings (سعيد ↦ المسيب/جبير) are flagged مشترك, never guessed by the shortest. Names that merely SHARE a token are not a match; teknonyms (أبو/أم + one name) match reverse-only and only when the man is cited BY the kunya. Extraction also drops truncated/generic entries («عبد الله ابن…») so they can't contain-match every «عبد الله بن فلان». And a tied group prefers the REAL narrators: an add-only COVERAGE man (الإصابة/الثقات — outside the Six Books, barely narrates) is dropped from a tied candidate group when a non-coverage man is present, so an obscure namesake never makes a famous narrator «مشترك» («أبي هريرة» is the Companion الدوسي, not a محمد who merely carries the kunya); coverage men resolve only when they are the sole option. Finally a PROMINENCE prior breaks a remaining tie toward the prolific narrator (each name's corpus narration frequency, from the graph via RijalIndex.set_prominence): «ابن عمر» is the much-narrated عبد الله بن عمر, not an obscure same-father namesake; but two comparably-prolific men (سفيان ↦ عيينة/الثوري) stay مشترك — the floor only context (شيوخ/تلاميذ) can split.",
     "candidates(name): the FULL homonym set (all top contained + top-covering partials) rather than one best answer — so the chain can choose. This is «the chain before the name»: a متروك/Companion namesake never wins on the bare name when the company points to a different known man.",
     "Guards: _order_ok (shared tokens in the same order: «يزيد بن جابر» ≠ «جابر بن يزيد»), and rejecting a bulky non-identifying query (Abu/Abi/Umm/Abd alone).",
