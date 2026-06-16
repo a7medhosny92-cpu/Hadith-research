@@ -112,8 +112,11 @@ def verify_isnad(
         raise HTTPException(status_code=422, detail="provide hadith_id or isnad")
 
     # تمييز المهمل (the corpus names the bare one in full elsewhere) then canon's company resolve
-    # a shared name from the chain it sits in, before grading.
-    analysis = analyze_isnad(chain, rijal=rijal, canon=canon, muhmal=muhmal, network=network).to_dict()
+    # a shared name from the chain it sits in, before grading. split_conarrators=True so a fused dual
+    # «قتيبة بن سعيد وعبد الله بن مسلمة» / «عروة وعمرة» is two MEN here (else the user-facing verdict
+    # holds a sound chain «يُتوقَّف» on a «غير معروف» fused node); the aggregate audit keeps it off.
+    analysis = analyze_isnad(chain, rijal=rijal, canon=canon, muhmal=muhmal, network=network,
+                             split_conarrators=True).to_dict()
     result = {"source": source, "analysis": analysis}
     if graph is not None and graph.count():
         result["continuity"] = continuity(analysis["narrators"], graph)

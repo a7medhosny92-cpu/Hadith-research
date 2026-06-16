@@ -53,19 +53,22 @@ _DIGIT = re.compile(r"[0-9٠-٩۰-۹]")
 def _classify_token(folded: str) -> str | None:
     """The bug-class a stray node token betrays, or ``None`` if it is a legitimate name token.
     «بن/ابن» and kunya particles (أبو/أم) and the Prophet's eulogy are NOT flagged — they are real
-    parts of finalised node names."""
+    parts of finalised node names. A leading waw is stripped first so «وقال» (al-Bukhārī's تعليق
+    «وقال الليث») / «وكان» are caught as well as the bare forms."""
     if not folded:
         return None
     if _DIGIT.search(folded):
         return "number"
-    if folded in _ANNA:
-        return "anna"
-    if folded in _SAY:
-        return "say"
-    if folded in _ACTION:
-        return "action"
-    if folded in _BACKREF:
-        return "backref"
+    bare = folded[1:] if folded[:1] == "و" else folded   # «وقال» → «قال», «وكان» → «كان»
+    for token in (folded, bare):
+        if token in _ANNA:
+            return "anna"
+        if token in _SAY:
+            return "say"
+        if token in _ACTION:
+            return "action"
+        if token in _BACKREF:
+            return "backref"
     if _VERB_RE.match(folded):
         return "verb"
     return None
