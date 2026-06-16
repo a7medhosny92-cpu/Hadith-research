@@ -468,3 +468,17 @@ def test_grave_never_shadows_a_trustworthy_namesake_via_filters():
     m = idx.lookup("محمد بن الزبير")
     assert m.ambiguous and not m.grade_agreed          # held, NOT graded متروك
     assert sweep(idx)["dangerous"] == []               # the conflict sweep agrees: not dangerous
+
+
+def test_candidates_display_shows_all_homonyms_not_the_prolific_few():
+    """The «راوٍ» picker (narrator_dossier) must list ALL homonyms — «عبد الله» is many men for the
+    user to choose from, not the two ابادلة the chain-time prominence prior keeps. So the display path
+    calls candidates(apply_prominence=False)."""
+    from app.rijal.index import RijalIndex
+    idx = RijalIndex([
+        {"name": "عبد الله بن عباس", "grade": "صحابي", "source": "seed"},
+        {"name": "عبد الله بن المبارك", "grade": "ثقة", "source": "تقريب التهذيب (رقم 8609)"},
+    ])
+    idx.set_prominence({"عبد الله بن عباس": 5000, "عبد الله بن المبارك": 50})
+    assert len(idx.candidates("عبد الله", apply_prominence=True)) == 1     # chain-time: collapses
+    assert len(idx.candidates("عبد الله", apply_prominence=False)) == 2    # display: all of them

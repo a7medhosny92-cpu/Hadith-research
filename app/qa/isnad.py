@@ -235,7 +235,11 @@ def analyze_isnad(
             break
         # matn boundary: the isnad ends where the report (matn) begins
         nxt_is_via = nxt in _VIA or (nxt[:1] == "و" and nxt[1:] in _VIA)
-        soft = folded in _MATN_SOFT or folded in _MATN_VERB
+        # «وقال فلان» (al-Bukhārī's تعليق: «… عن الزهري وقال الليث: حدّثني …») and «وكان …» carry the
+        # waw — strip it so they're recognised as a soft boundary, else «وقال الليث» glues onto الزهري.
+        soft = (folded in _MATN_SOFT or folded in _MATN_VERB
+                or (folded[:1] == "و" and folded[1:] in _MATN_SOFT)
+                or (folded[:1] == "و" and folded[1:] in _MATN_VERB))
         if folded in _MATN_HARD or (soft and not nxt_is_via):
             flush()
             break

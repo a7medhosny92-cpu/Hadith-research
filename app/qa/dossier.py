@@ -117,8 +117,11 @@ def narrator_dossier(name: str, graph, rijal: RijalIndex, *, limit: int | None =
     ابن عمر but with شعبة, who died 90 years later, among his شيوخ). Instead it returns the
     **candidate list** so the user picks the intended narrator — never a confident guess."""
     # disambiguation first: if the name maps to several known men, return them ALL (max_results=None
-    # bypasses the chain-resolution cap — «عمر» really does have 134 bearers, and we want to show them).
-    cands = list({c.name: c for c in rijal.candidates(name, max_results=None)}.values())
+    # bypasses the chain-resolution cap — «عمر» really does have 134 bearers, and we want to show them;
+    # apply_prominence=False so the DISPLAY is the full homonym set, not the prolific few the chain-time
+    # prior keeps — «عبد الله» is hundreds of men for the user to pick from, not just the two ابادلة).
+    cands = list({c.name: c
+                  for c in rijal.candidates(name, max_results=None, apply_prominence=False)}.values())
     if len(cands) > 1:
         cands.sort(key=lambda c: (c.category != "صحابي", c.death_year is None,
                                   c.death_year or 9999, c.name))     # Companions first, then by era

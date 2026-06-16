@@ -237,6 +237,8 @@ def test_object_pronoun_verb_closes_the_shaykh_not_glued():
     ("حدثنا فلان عن عائشة كان النبي صلى الله عليه وسلم يصلي", "عائشة"),  # «كان …» scene opener = matn
     ("حدثنا فلان عن أبي هريرة فذكره", "أبي هريرة"),                     # «فذكره» back-reference = matn
     ("حدثنا١ سفيان١ عن عمرو٢ عن جابر١", "سفيان"),                      # footnote-digit glue is stripped
+    # al-Bukhārī's تعليق «… عن الزهري وقال الليث: حدّثني …» — «وقال الليث» must NOT glue onto الزهري
+    ("حدثنا قتيبة عن مالك عن الزهري وقال الليث حدثني عقيل عن عروة", "الزهري"),
 ])
 def test_segmentation_leaves_no_corrupt_nodes(isnad, expect_node):
     """The boundary rules found by scripts.audit_nodes: every finalised node is a clean name."""
@@ -404,3 +406,14 @@ def test_waw_split_marks_a_route_seam_no_false_link():
     first to the second (الزهري↛هشام)."""
     a = analyze_isnad("حدثنا قتيبة عن الزهري وهشام بن عروة عن عروة بن الزبير", split_conarrators=True)
     assert next(n for n in a.narrators if n["name"] == "هشام بن عروة").get("route_start")
+
+
+def test_verify_isnad_splits_co_narrators(client):
+    """The user-facing verdict must SPLIT a fused dual — «قتيبة بن سعيد وعبد الله بن مسلمة» and «عروة
+    وعمرة» are two men each — else a sound chain (أبو داود 2468) is held «يُتوقَّف» on a «غير معروف»
+    fused node. The router passes split_conarrators=True (the aggregate audit keeps it off)."""
+    chain = ("حدثنا قتيبة بن سعيد وعبد الله بن مسلمة قالا حدثنا الليث عن ابن شهاب "
+             "عن عروة وعمرة عن عائشة عن النبي صلى الله عليه وسلم")
+    names = [n["name"] for n in client.get("/verify-isnad", params={"isnad": chain}).json()["analysis"]["narrators"]]
+    assert "عبد الله بن مسلمة" in names and "عمرة" in names
+    assert not any("وعبد الله" in n or "وعمرة" in n for n in names)   # no fused dual node
