@@ -154,11 +154,12 @@ def merge_source(primary: list[dict], secondary: list[dict],
     return primary, added, upgraded
 
 
-def merge_appraisals(records: list[dict], prose_records: list[dict]) -> tuple[list[dict], int]:
+def merge_appraisals(records: list[dict], prose_records: list[dict], *, book: str = "") -> tuple[list[dict], int]:
     """Attach the NAMED-critic أقوال الأئمة of a PROSE source (الجرح/تهذيب/الثقات…) to the matching
     rijal entry — by an UNAMBIGUOUS name match — enriching a KNOWN narrator with «who said what»
-    WITHOUT touching his (تقريب/الكاشف) grade. A man absent from the rijal is skipped here; an entry
-    that already has appraisals is left alone (the first prose source wins). Returns (records, attached)."""
+    WITHOUT touching his (تقريب/الكاشف) grade. Each appraisal is tagged with the ``book`` that reports
+    it (تهذيب الكمال…), so the card can show «قال ابن معين: ثقة — تهذيب الكمال». A man absent from the
+    rijal is skipped; an entry that already has appraisals is left alone (the first prose source wins)."""
     index = RijalIndex(records)
     by_name = {r["name"]: r for r in records}
     attached = 0
@@ -170,7 +171,7 @@ def merge_appraisals(records: list[dict], prose_records: list[dict]) -> tuple[li
         if match and match.score >= 1.0 and not match.ambiguous:
             entry = by_name.get(match.entry.name)
             if entry is not None and not entry.get("appraisals"):
-                entry["appraisals"] = aps
+                entry["appraisals"] = [{**a, "book": book} if book else dict(a) for a in aps]
                 attached += 1
     return records, attached
 
@@ -270,15 +271,15 @@ def main() -> None:
     # Named أقوال الأئمة (the multi-critic dossier «قال ابن معين: ثقة») from the PROSE sources, attached
     # to the matching rijal entry — gated on the downloaded book, the grade itself is unchanged. Run
     # AFTER the dedup so the appraisals land on the final, collapsed entries.
-    _PROSE = {2170: parse_jarh_file, 3722: parse_tahdhib_file, THIQAT_BOOK_ID: parse_thiqat_file,
-              LISAN_BOOK_ID: parse_lisan_file}
-    for book_id, parser in _PROSE.items():             # الجرح · تهذيب الكمال · الثقات · لسان الميزان
+    _PROSE = {2170: (parse_jarh_file, "الجرح والتعديل"), 3722: (parse_tahdhib_file, "تهذيب الكمال"),
+              THIQAT_BOOK_ID: (parse_thiqat_file, "الثقات"), LISAN_BOOK_ID: (parse_lisan_file, "لسان الميزان")}
+    for book_id, (parser, book_name) in _PROSE.items():    # الجرح · تهذيب الكمال · الثقات · لسان الميزان
         bp = books_dir / f"{book_id}.json"
         if not bp.exists():
             continue
-        result, attached = merge_appraisals(result, parser(bp))
+        result, attached = merge_appraisals(result, parser(bp), book=book_name)
         if attached:
-            print(f"  attached أقوال الأئمة from {book_id}: {attached} narrators")
+            print(f"  attached أقوال الأئمة from {book_name}: {attached} narrators")
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w", encoding="utf-8") as fh:
