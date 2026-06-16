@@ -47,3 +47,24 @@ def test_merge_appraisals_attaches_by_name_and_carries_through():
     card = RijalIndex(out).lookup("بشير بن كعب العدوي").to_dict()
     assert card["appraisals"][0]["critic"] == "ابن معين"
     assert card["appraisals"][0]["book"] == "تهذيب الكمال"      # each verdict carries its reporting book
+
+
+def test_merge_appraisals_combines_across_books_deduped_by_critic():
+    """A narrator's dossier ACCUMULATES across all prose books (called once each), each verdict tagged
+    with its book; a critic cited in an earlier book is not duplicated by a later one (first book wins
+    for that critic) — so ابن معين from الجرح stands beside النسائي from تهذيب."""
+    from scripts.build_rijal import merge_appraisals
+    records = [{"name": "محمد بن عمرو بن علقمة الليثي", "grade": "صدوق", "source": "تقريب"}]
+    jarh = [{"name": "محمد بن عمرو بن علقمة الليثي",
+             "appraisals": [{"critic": "أبو حاتم الرازي", "verdict": "صالح الحديث"},
+                            {"critic": "ابن معين", "verdict": "ثقة"}]}]
+    tahdhib = [{"name": "محمد بن عمرو بن علقمة الليثي",
+                "appraisals": [{"critic": "ابن معين", "verdict": "لا بأس به"},      # dup critic → الجرح wins
+                               {"critic": "النسائي", "verdict": "ليس به بأس"}]}]
+    records, _ = merge_appraisals(records, jarh, book="الجرح والتعديل")
+    records, _ = merge_appraisals(records, tahdhib, book="تهذيب الكمال")
+    by_critic = {a["critic"]: a for a in records[0]["appraisals"]}
+    assert set(by_critic) == {"أبو حاتم الرازي", "ابن معين", "النسائي"}            # combined, de-duped
+    assert by_critic["ابن معين"]["verdict"] == "ثقة"                              # first book (الجرح) won
+    assert by_critic["ابن معين"]["book"] == "الجرح والتعديل"
+    assert by_critic["النسائي"]["book"] == "تهذيب الكمال"                         # النسائي added from تهذيب
