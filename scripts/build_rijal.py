@@ -158,8 +158,11 @@ def merge_appraisals(records: list[dict], prose_records: list[dict], *, book: st
     """Attach the NAMED-critic أقوال الأئمة of a PROSE source (الجرح/تهذيب/الثقات…) to the matching
     rijal entry — by an UNAMBIGUOUS name match — enriching a KNOWN narrator with «who said what»
     WITHOUT touching his (تقريب/الكاشف) grade. Each appraisal is tagged with the ``book`` that reports
-    it (تهذيب الكمال…), so the card can show «قال ابن معين: ثقة — تهذيب الكمال». A man absent from the
-    rijal is skipped; an entry that already has appraisals is left alone (the first prose source wins)."""
+    it (تهذيب الكمال…), so the card shows «قال ابن معين: ثقة — تهذيب الكمال». A man's dossier **accumulates
+    ACROSS books** (called once per prose source, in _PROSE order), de-duplicated **by critic** — a critic
+    already cited from an earlier book is not added again (the first, more-primary source wins for him),
+    so the card carries ابن معين from one book beside أبو حاتم from another. A man absent from the rijal is
+    skipped. Returns (records, narrators that gained ≥1 new verdict from this book)."""
     index = RijalIndex(records)
     by_name = {r["name"]: r for r in records}
     attached = 0
@@ -168,11 +171,20 @@ def merge_appraisals(records: list[dict], prose_records: list[dict], *, book: st
         if not aps:
             continue
         match = index.lookup(pr.get("name", ""))
-        if match and match.score >= 1.0 and not match.ambiguous:
-            entry = by_name.get(match.entry.name)
-            if entry is not None and not entry.get("appraisals"):
-                entry["appraisals"] = [{**a, "book": book} if book else dict(a) for a in aps]
-                attached += 1
+        if not (match and match.score >= 1.0 and not match.ambiguous):
+            continue
+        entry = by_name.get(match.entry.name)
+        if entry is None:
+            continue
+        existing = entry.setdefault("appraisals", [])
+        have = {a["critic"] for a in existing}
+        added = False
+        for a in aps:
+            if a["critic"] not in have:
+                existing.append({**a, "book": book} if book else dict(a))
+                have.add(a["critic"])
+                added = True
+        attached += added
     return records, attached
 
 
