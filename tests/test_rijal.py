@@ -156,6 +156,17 @@ def test_known_tabii_misgraded_sahabi_is_corrected_to_thiqa():
     assert rij2.lookup("أنس بن مالك").entry.category == "صحابي"
 
 
+def test_companion_form_does_not_grade_a_descendant_named_after_him():
+    # «الحسن بن الحسن بن علي بن أبي طالب» (الحسن المثنى, a تابعي) carries his Companion FATHER «الحسن بن
+    # علي بن أبي طالب» as a suffix of his nasab; the anchor must NOT grade the son صحابي — his immediate
+    # father is الحسن, not علي, so the Companion form names an ANCESTOR (the grandfather's line), not him.
+    son = RijalIndex([{"name": "الحسن بن الحسن بن علي بن أبي طالب الهاشمي", "grade": ""}])  # ungraded
+    assert son.lookup("الحسن بن الحسن").entry.category != "صحابي"
+    # the real Companion الحسن بن علي IS still anchored صحابي (his own ism+father lead his name)
+    grandfather = RijalIndex([{"name": "الحسن بن علي بن أبي طالب الهاشمي", "grade": ""}])
+    assert grandfather.lookup("الحسن بن علي").entry.category == "صحابي"
+
+
 def test_shuhra_extends_to_ibn_abi_dhib_and_ibn_abi_mulayka():
     # ابن أبي ذئب IS محمد بن عبد الرحمن … بن أبي ذئب (ثقة) — the bare shuhra otherwise lands on his
     # maternal uncle whose name carries «خال ابن أبي ذئب»; ابن أبي مليكة IS the قاضي عبد الله بن عبيد

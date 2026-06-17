@@ -378,3 +378,15 @@ def test_trim_name_strips_alternate_disputed_and_dabt_tails():
     assert _trim_name("مجيبة ثم أبو مجيبة الباهلي هي امرأة") == "مجيبة ثم أبو مجيبة الباهلي"
     # non-regression: a name that merely STARTS with «أو» (أوس) is kept whole
     assert _trim_name("أوس بن عبد الله الربعي أبو الجوزاء") == "أوس بن عبد الله الربعي أبو الجوزاء"
+
+
+def test_trim_name_strips_a_relational_descriptor_naming_another_man():
+    """A «خادم/خال/صاحب X» tail names ANOTHER man (bio, not the subject's name) — cutting it keeps the
+    subject's own name, so a citation of X no longer matches HIM (the «علي بن موسى الرضا» → the متروك
+    خادم, and «ابن أبي ذئب» → his خال, bugs). Whole-word: «خالد»/a clean name are untouched."""
+    assert _trim_name("عبد السلام بن صالح أبو الصلت الهروي خادم علي بن موسى الرضا") \
+        == "عبد السلام بن صالح أبو الصلت الهروي"
+    assert _trim_name("الحارث بن عبد الرحمن القرشي العامري خال ابن أبي ذئب") \
+        == "الحارث بن عبد الرحمن القرشي العامري"
+    assert _trim_name("صالح بن أبي صالح صاحب الشعبي") == "صالح بن أبي صالح"
+    assert _trim_name("خالد بن الوليد المخزومي") == "خالد بن الوليد المخزومي"
