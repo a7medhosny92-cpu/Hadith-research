@@ -510,6 +510,20 @@ PIL+libraqm bidi fix: pass RAW logical strings, no manual reshape/bidi — `/tmp
   newcomer «الحسن بن الحسن» 2× (الحسن بن علي's تابعي grandson, same class, minor); the rest are LEGIT صحابيٌّ-عن-صحابيّ.**
   **VERDICT: no new dangerous bug; the only open items are the KNOWN minor ones** — (1) علي بن موسى الرضا (1×, needs a probe),
   (2) the S residual نافع/الحسن بن الحسن (the bare/truncated-صحابي extraction root, the general cure). matn settled, duplicates ~1.
+  **★ #203 CONFIRMED + THE 2 RESIDUALS PROBE-DIAGNOSED & FIXED (2026-06-17, user re-ran `audit_isnad` + `probe_name`).**
+  audit: **S 458→413 (−45, the تابعي override worked), W 681→680, A 45301→45118.** The 2 probes pinned the root of BOTH
+  residuals + a general class: (a) **علي بن موسى الرضا** → it matched «عبد السلام … الهروي **خادم** علي بن موسى الرضا»
+  (متروك) — a RELATIONAL descriptor «خادم X» in the name makes a citation of X match the WRONG man (the servant); same
+  shape as the «خال ابن أبي ذئب» case. **FIXED `rijal_extract._NAME_CUT` += «خادم|خال|صاحب»** (cut the relational tail
+  naming another man; whole-word, «خالد» untouched). **NEEDS `build_rijal`.** (b) **الحسن بن الحسن** → his entry «الحسن بن
+  الحسن بن علي بن أبي طالب» graded صحابي because the ANCHOR's set-subset matched his Companion FATHER «الحسن بن علي بن أبي
+  طالب» buried in his nasab. **FIXED `index._anchor_grade` → POSITIONAL `_form_identifies`**: a form must IDENTIFY THE
+  SUBJECT — ism+immediate-father lead the name and the nisba follows IN ORDER (so «عامر بن شراحيل الشعبي» still IDs «عامر
+  بن شراحيل أبو عمرو الشعبي», kunya skipped) — NOT an ancestor (father علي≠الحسن → the son isn't graded صحابي). The kunya-led
+  forms (أبو هريرة الدوسي) still match by a contiguous run. **LIVE on the next `audit_isnad`** (the anchor runs in `add`).
+  +2 tests, **460 green**. **WAITING ON THE USER: `build_rijal --no-download` (for علي الرضا) then `audit_isnad`** → expect
+  W→~679 (علي الرضا) + S a touch lower (الحسن بن الحسن, if his صحابي was anchor-derived). Still pending: the غندر probe + the
+  find_book for A.3 (the user hasn't pasted those yet).
 
 **★★ (2026-06-15, THIS SESSION cont.) THE JOINT-RESOLVER DIRECTION — `app/rijal/resolve.py` core BUILT (gated,
 unwired). The user's insight + the next architecture.** The user pushed a deep point: «the company that should

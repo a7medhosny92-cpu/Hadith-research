@@ -86,19 +86,51 @@ def _clean_tokens(name: str) -> set[str]:
     return set(_clean_seq(name))
 
 
-# Curated, closed anchor sets (folded once): a high-status narrator whose رجال entry carries NO grade
-# must not read «مجهول». Each form is ≥2 distinctive tokens; an entry whose name CONTAINS one is graded
-# accordingly. See app/rijal/companions.py.
-_COMPANION_FORMS = [f for f in (frozenset(_clean_tokens(c)) for c in MAJOR_COMPANIONS) if len(f) >= 2]
-_TABII_FORMS = [f for f in (frozenset(_clean_tokens(c)) for c in MAJOR_TABIIN) if len(f) >= 2]
+# Curated, closed anchor SEQUENCES (folded once, IN ORDER): a high-status narrator whose رجال entry
+# carries NO grade — or is mis-graded صحابي for a known تابعي — is anchored to the documentary verdict.
+# A form must IDENTIFY THE SUBJECT (its leading run, or his own kunya), never an ancestor buried in his
+# nasab. See app/rijal/companions.py.
+_COMPANION_SEQS = [s for s in (_clean_seq(c) for c in MAJOR_COMPANIONS) if len(s) >= 2]
+_TABII_SEQS = [s for s in (_clean_seq(c) for c in MAJOR_TABIIN) if len(s) >= 2]
 
 
-def _anchor_grade(name_tokens: set[str]) -> tuple[str, int] | None:
-    """If the name contains a major Companion → («صحابي», 10); a major تابعي ثقة → («ثقة», 9); else
-    ``None``. Only consulted for an otherwise-ungraded entry (see ``RijalIndex.add``)."""
-    if any(f <= name_tokens for f in _COMPANION_FORMS):
+def _contiguous(sub: list[str], full: list[str]) -> bool:
+    """Does ``sub`` occur as a contiguous run anywhere in ``full``?"""
+    n = len(sub)
+    return n > 0 and any(full[i:i + n] == sub for i in range(len(full) - n + 1))
+
+
+def _ordered_subseq(sub: list[str], full: list[str]) -> bool:
+    """Do ``sub``'s tokens all appear in ``full`` IN ORDER (a kunya/extra token may sit between them)?"""
+    it = iter(full)
+    return all(tok in it for tok in sub)
+
+
+def _form_identifies(name_seq: list[str], forms: list[list[str]]) -> bool:
+    """Does a curated form name the SUBJECT of the name — not an ancestor buried in his nasab?
+    An ism-led form matches when its **ism AND immediate father** are the name's leading two tokens
+    and the rest (the nisba) follows IN ORDER — so «عامر بن شراحيل الشعبي» identifies «عامر بن شراحيل
+    أبو عمرو الشعبي» (the kunya is skipped) but «الحسن بن علي بن أبي طالب» (father علي) does NOT identify
+    his تابعي son «الحسن بن الحسن بن علي …» (father الحسن — the form names the GRANDFATHER's line, i.e.
+    an ancestor). A kunya-led form matches the subject's OWN kunya (a contiguous run «أبو هريرة الدوسي»)."""
+    for f in forms:
+        if f[0] in _KUNYA_PARTICLES:
+            if _contiguous(f, name_seq):
+                return True
+        elif (name_seq[:1] == f[:1]                                    # same ism (leading)
+              and (len(f) < 2 or (len(name_seq) >= 2 and name_seq[1] == f[1]))   # same immediate father
+              and _ordered_subseq(f, name_seq)):                       # the nisba etc. follow in order
+            return True
+    return False
+
+
+def _anchor_grade(name: str) -> tuple[str, int] | None:
+    """If the name's SUBJECT is a major Companion → («صحابي», 10); a major تابعي ثقة → («ثقة», 9); else
+    ``None``. Used to recover an ungraded entry AND to correct a known تابعي mis-graded صحابي."""
+    seq = _clean_seq(name)
+    if _form_identifies(seq, _COMPANION_SEQS):
         return "صحابي", RANKS["صحابي"]
-    if any(f <= name_tokens for f in _TABII_FORMS):
+    if _form_identifies(seq, _TABII_SEQS):
         return "ثقة", RANKS["ثقة"]
     return None
 
@@ -382,7 +414,7 @@ class RijalIndex:
             # are تابعون by consensus, so this is documentary; a name that ALSO matches a Companion form
             # (anchor → صحابي) is left untouched, so a real Companion keeps his grade.
             if category == "صحابي":
-                anchor = _anchor_grade(_clean_tokens(raw["name"]))
+                anchor = _anchor_grade(raw["name"])
                 if anchor and anchor[0] == "ثقة":
                     category, rank = anchor
             # A Companion's bio («أحد العشرة أسلم قديمًا …») sometimes leaks into his NAME, not the grade,
@@ -394,7 +426,7 @@ class RijalIndex:
                 # these are the well-known referents, documentary not guessed (app/rijal/companions.py).
                 # (2) Else recover a POSITIVE grade that leaked into his NAME (عبد الرحمن بن عوف «أحد
                 # العشرة …») — never a negative one, which could sink a sound chain on a coincidental word.
-                anchor = _anchor_grade(_clean_tokens(raw["name"]))
+                anchor = _anchor_grade(raw["name"])
                 if anchor:
                     category, rank = anchor
                 else:

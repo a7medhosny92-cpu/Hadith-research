@@ -129,7 +129,11 @@ _NAME_CUT = re.compile(
     r"صنف|مشهور|تابعي|مخضرم|صحابي|صحابية|صحبة|شهد|ولد|ولدت|قتل|قتلت|استشهد|عاش|عاشت|تزوج|"
     r"اسمه|واسمه|يكنى|المتكلم|المنشأ|"  # «… اسمه يحيى» / «يكنى أبا حجية» / «المتكلم بعد الموت» — a name-note tail
     r"أو|مختلف|وقد|هي|"  # «… أو أبو حفص» (alt كنية) / «مختلف في صحبته» / «وقد ينسب إلى جده» / «هي امرأة» — a bio tail
-    r"تزوجت|تزوجها|ولي|وليت|بايع|أدرك|صحب|صحبت|ذكره|ذكرها|والد|والدة|مولى|ولأبيه|خليفة)\s"
+    r"تزوجت|تزوجها|ولي|وليت|بايع|أدرك|صحب|صحبت|ذكره|ذكرها|"
+    r"خادم|خال|صاحب|"  # a RELATIONAL descriptor naming ANOTHER man («… خادم علي بن موسى الرضا»، «… خال
+    #                     ابن أبي ذئب»، «صاحب الشعبي») — bio, not the subject's name; cut it so a citation
+    #                     of THAT man no longer matches this one (whole-word, so «خالد»/«صاحبة» untouched)
+    r"والد|والدة|مولى|ولأبيه|خليفة)\s"
 )
 # An ALTERNATE nasab interjected mid-name: «ويقال ابن علي»، «ويقال ابن أبي شعيرة» — a parenthetical
 # variant father, not the bio. Stripped whole (with its «ابن فلان») so the real name runs on to the
