@@ -188,6 +188,15 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★ (2026-06-17) ROADMAP #7 STRUCTURAL علّة/شذوذ — STARTED (the user's «1+2+3», step 2).** New `app/qa/illal.py`
+`detect_structural_illal(takhrij)`: reads the SHAPE of the طرق `analyze_narrations` already gathers and emits HINTS
+(`{type, severity, note}`, never a verdict — «قرائنُ للنظر، لا حُكمٌ»): **تفرّد/غرابة** (single Companion / no متابع),
+**شذوذ في المتن** (a lone «بمعناه» wording vs the well-attested many from one مخرج), **اضطراب** (≥3 divergent wordings,
+no راجح), **اختلاف الرفع والوقف** (routes split on `reaches_prophet`, conservative ≥2 each side). Wired into `/takhrij`
+(`illal` field) + the «تخريج» tab (`renderTakhrij` → an `.illal-box`). +4 tests (`tests/test_illal.py`), node --check clean.
+Docs: ROADMAP #7→started, التقنية takhrij card. **NEXT (the user's «1+2+3», step 3): الطبقات** (extract ابن سعد 9351 —
+طبقة + وفاة, already on disk). Remaining #7: وصل/إرسال, grade-weighted lone-ثقة شذوذ.
+
 **★ (2026-06-17) ROADMAP #2 «الرأي الثاني» (double-opinion) ADJUDICATED — DONE.** The critics' opinions
 (`RijalEntry.opinions`, تقريب/الكاشف…) were already kept + shown (the «⚠ اختلفوا» badge); now the isnad VERDICT
 adjudicates: `isnad._effective_rank` grades a مختلف فيه narrator by his **weakest opinion** (أنزل القولين عند

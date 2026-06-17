@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.qa.illal import detect_structural_illal
 from app.qa.takhrij import analyze_narrations
 from app.routers.search import get_embedder, get_index, get_vectors
 from app.search import HadithIndex, VectorIndex
@@ -54,4 +55,6 @@ def takhrij(
         "by_collection": analysis["by_collection"],
         "groups": analysis["groups"],
         "parallels": parallels,
+        # structural عِلّة/شذوذ HINTS read from the shape of the gathered طرق (never a verdict)
+        "illal": detect_structural_illal(analysis),
     }

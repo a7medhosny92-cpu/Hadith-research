@@ -94,11 +94,14 @@ Nothing else is trustworthy without these. Small, fast, no models.
    today's heuristics as noisy labels, hand-correct the gold set, train a lightweight Arabic
    token-classifier (إسناد / متن / حكم). Fall back to heuristics when confidence is low.
    *Effort: high.* *Validate:* parsing-F1 on the gold set beats the heuristic baseline.
-7. **Structural علّة/شذوذ signals.** Beyond *stated* علل (item 3), *detect* candidates by
-   comparing the طرق already gathered by التخريج: رفع vs وقف / وصل vs إرسال across routes →
-   possible علّة; a lone ثقة against more/أوثق narrators → possible شذوذ/تفرّد. Always framed
-   as **a hint to investigate**, never a verdict. *Effort: high.* *Validate:* precision on
-   known cases (favour few, correct flags over many noisy ones).
+7. **Structural علّة/شذوذ signals.** *Status: **STARTED** — `app/qa/illal.py` `detect_structural_illal`
+   reads the shape of the طرق التخريج already gathered and emits HINTS (`{type, severity, note}`): **تفرّد/
+   غرابة** (single Companion / no متابع), **شذوذ في المتن** (a lone «بمعناه» wording against the many),
+   **اضطراب** (≥3 divergent wordings, no راجح), and **اختلاف الرفع والوقف** (the routes split on reaching
+   the Prophet ﷺ — `reaches_prophet` per route, conservative ≥2 each side). Wired into `/takhrij`
+   (`illal` field) and the «تخريج» tab («إشاراتٌ بنيويّةٌ للعِلّة والشذوذ — قرائنُ للنظر، لا حُكمٌ»);
+   `tests/test_illal.py`.* Remaining: وصل vs إرسال across routes, a lone-ثقة-vs-أوثق شذوذ weighted by grade.
+   Always **a hint to investigate**, never a verdict. *Effort: high.* *Validate:* precision on known cases.
 8. **Rich rijal from the verbose corpus.** *Status: **PARTLY DONE** — `appraisals.py` extracts the
    named «أقوال الأئمة» (قال ابن معين… / ذكره ابن حبان…) from الجرح/تهذيب/الثقات and shows them on the
    «راوٍ» card.* Remaining: widen the curated نقّاد list and add more prose sources. *Effort: high.*
@@ -119,7 +122,7 @@ Nothing else is trustworthy without these. Small, fast, no models.
 | 4 | Fine-tuned embedding (التخريج pairs) | **high** | med | 2 |
 | 5 | Reranker | med | med | 2 |
 | 6 | Finer إسناد/متن/grade parsing | **high** | high | 3 |
-| 7 | Structural علّة/شذوذ signals | **high** | high | 3 |
+| 7 | Structural علّة/شذوذ signals **(started)** | **high** | high | 3 |
 | 8 | Rich rijal (verbose corpus) | med | high | 3 |
 | 9 | Postgres + pgvector | low* | med | 4 |
 
