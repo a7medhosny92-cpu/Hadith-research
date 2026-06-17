@@ -233,6 +233,41 @@ class HadithIndex:
     def count(self) -> int:
         return self._con.execute("SELECT count(*) FROM hadith").fetchone()[0]
 
+    # ── library navigator (collections → chapters → hadiths), for the «الكتب» browse tab ──────────
+    def collections(self) -> list[dict]:
+        """Every collection present, with its hadith count, in corpus (parse) order."""
+        rows = self._con.execute(
+            "SELECT book_id, collection, COUNT(*) FROM hadith GROUP BY book_id ORDER BY MIN(rowid)"
+        ).fetchall()
+        return [{"book_id": b, "collection": c, "count": n} for b, c, n in rows]
+
+    def chapters(self, book_id: int) -> list[dict]:
+        """The chapters (كتاب/باب headings) of one collection, in book order, each with its count.
+        A chapter recurs on every hadith under it, so we group and order by first appearance."""
+        rows = self._con.execute(
+            "SELECT chapter, COUNT(*), MIN(rowid) FROM hadith "
+            "WHERE book_id = ? AND chapter IS NOT NULL AND chapter <> '' "
+            "GROUP BY chapter ORDER BY MIN(rowid)",
+            (book_id,),
+        ).fetchall()
+        return [{"chapter": ch, "count": n} for ch, n, _ in rows]
+
+    def chapter_hadiths(
+        self, book_id: int, chapter: str | None = None, *, offset: int = 0, limit: int = 50
+    ) -> list[SearchHit]:
+        """The hadiths of one collection under ``chapter`` (or the whole book when ``None``), in
+        book order, paged — the leaf of the «الكتب» navigator."""
+        where, args = "book_id = ?", [book_id]
+        if chapter is not None:
+            where, args = "book_id = ? AND chapter = ?", [book_id, chapter]
+        rows = self._con.execute(
+            "SELECT rowid, book_id, collection, number, matn, isnad, grade, chapter, "
+            f"page, volume, 0.0 AS score, '' AS snip FROM hadith WHERE {where} "
+            "ORDER BY rowid LIMIT ? OFFSET ?",
+            (*args, limit, offset),
+        ).fetchall()
+        return [_hit(row) for row in rows]
+
     def iter_for_embedding(self) -> Iterator[tuple[int, str]]:
         """Yield ``(rowid, text)`` for every hadith, in row order, for the vector index.
 
