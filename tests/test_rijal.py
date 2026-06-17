@@ -105,6 +105,27 @@ def test_ibn_X_patronymic_does_not_match_the_eponym_named_X():
     assert rij.lookup("عمر بن الخطاب") is not None
 
 
+def test_ibn_jurayj_shuhra_resolves_to_the_man_known_by_his_grandfather():
+    # «ابن جريج» IS عبد الملك بن عبد العزيز بن جريج — universally cited by his GRANDFATHER جريج. The
+    # token matcher drops «ابن» and reads a bare «جريج», a non-leading partial of every man carrying
+    # جريج (his father عبد العزيز, the unrelated عيسى بن جريج) → held «مشترك». The curated shuhra
+    # redirect resolves him uniquely; his grade (ثقة) then flows.
+    rij = RijalIndex([
+        {"name": "عبد الملك بن عبد العزيز بن جريج المكي", "grade": "ثقة"},   # = ابن جريج
+        {"name": "عبد العزيز بن جريج", "grade": "ضعيف"},                      # his father (a «X بن جريج»)
+        {"name": "عيسى بن جريج البصري", "grade": "مقبول"},                    # an unrelated «X بن جريج»
+    ])
+    m = rij.lookup("ابن جريج")
+    assert m is not None and not m.ambiguous
+    assert m.entry.name.startswith("عبد الملك بن عبد العزيز بن جريج")
+    assert m.entry.category == "ثقة"
+    cands = [e.name for e in rij.candidates("ابن جريج", max_results=None)]
+    assert len(cands) == 1 and cands[0].startswith("عبد الملك بن عبد العزيز بن جريج")
+    # an unrelated literal «X بن جريج» citation is NOT redirected — normal matching still reaches him
+    son = rij.lookup("عيسى بن جريج")
+    assert son is not None and son.entry.name.startswith("عيسى")
+
+
 def test_a_bare_grave_namesake_does_not_sink_a_fuller_trustworthy_one():
     # «إسحاق بن عمر» [متروك] (a bare, truncated entry) must NOT confidently grade a chain «ضعيف جدًا»
     # when a fuller, trustworthy «إسحاق بن عمر بن سليط الهذلي» also fits the bare citation — hold instead.
