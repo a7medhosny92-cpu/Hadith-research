@@ -244,6 +244,7 @@
     <button data-mode="takhrij">تخريج</button>
     <button data-mode="narrator">راوٍ</button>
     <button data-mode="browse">الرواة</button>
+    <button data-mode="books">الكتب</button>
     <button data-mode="network">الشبكة</button>
     <button data-mode="isnad">الإسناد</button>
     <button data-mode="notebook">دفتري</button>
@@ -492,7 +493,7 @@ document.querySelectorAll(".modes button").forEach(b => b.onclick = () => {
   syncEngineUI();
   // «المنهجية» / «البنية» / «التقنية» / «التدقيق» / «الرواة» are self-contained pages with no top
   // query box — they open immediately and carry their own controls.
-  const info = mode === "method" || mode === "arch" || mode === "tech" || mode === "audit" || mode === "conflicts" || mode === "matn" || mode === "browse";
+  const info = mode === "method" || mode === "arch" || mode === "tech" || mode === "audit" || mode === "conflicts" || mode === "matn" || mode === "browse" || mode === "books";
   q.style.display = info ? "none" : "";
   go.style.display = info ? "none" : "";
   if(mode === "notebook" || info){
@@ -743,6 +744,7 @@ async function run(){
   if(mode === "matn"){ renderMatnAudit(); return; }         // matn audit — extraction errors to review
   if(mode === "conflicts"){ renderConflicts(); return; }    // rijal grave↔trustworthy collisions
   if(mode === "browse"){ renderBrowse(); return; }          // browse every narrator (no search)
+  if(mode === "books"){ renderBooks(); return; }            // navigate the corpus: كتب → أبواب → أحاديث
   if(!query && mode !== "notebook") return;   // notebook lists everything when empty
   results.innerHTML = `<div class="state">… جارٍ التنفيذ</div>`;
   try{
@@ -1070,6 +1072,105 @@ results.addEventListener("input", e => {
   browseState.offset = 0;
   clearTimeout(_brTimer);
   _brTimer = setTimeout(() => browseFetch("list"), 250);
+});
+
+// Library (الكتب): navigate the corpus by its OWN structure — collections → their كتب/أبواب → the
+// hadiths under each — instead of searching. Three views with a breadcrumb; the leaf reuses
+// hadithCard. Server-backed by /books (reads the same index.db). The chapter filter is client-side
+// (a book's chapters are already in hand); hadiths page via «المزيد».
+const booksState = {view:"collections", book_id:null, collection:"", chapter:null, q:"",
+                    offset:0, limit:50, chapters:[]};
+
+async function renderBooks(){
+  Object.assign(booksState, {view:"collections", book_id:null, chapter:null, q:""});
+  results.innerHTML = `<div class="state">… جارٍ تحميل الكتب</div>`;
+  let d;
+  try { d = await getJSON("/books"); }
+  catch(e){ results.innerHTML = `<div class="state">${esc(e.message || "تعذّر التحميل")}</div>`; return; }
+  const cols = d.collections || [];
+  const items = cols.map(c =>
+    `<div class="rawi-item bk-col" data-id="${c.book_id}" data-name="${esc(c.collection)}" role="button" tabindex="0">`
+    + `<span>${esc(c.collection)}</span><span class="simbadge">${c.count}</span></div>`).join("");
+  results.innerHTML = booksCrumb()
+    + `<div class="note">تصفّح الكتب الكبرى وأبوابها — اختَر كتابًا، ثم بابًا، ثم تظهر أحاديثه.</div>`
+    + `<div class="rawi-col">${items || '<div class="note">لا كتب بعد — ابنِ الفهرس (index.db) أولًا.</div>'}</div>`;
+}
+
+function booksCrumb(){
+  const p = [`<span class="bk-crumb" data-to="collections" role="button" tabindex="0">الكتب</span>`];
+  if(booksState.book_id != null)
+    p.push(`<span class="bk-crumb" data-to="chapters" role="button" tabindex="0">${esc(booksState.collection)}</span>`);
+  if(booksState.chapter != null) p.push(`<span>${esc(booksState.chapter)}</span>`);
+  return `<div class="note bk-bread">${p.join(" › ")}</div>`;
+}
+
+function _bkNorm(s){ return (s || "").replace(/[ً-ْٰ]/g, ""); }   // strip tashkeel for the filter
+function _bkChapterItems(){
+  const ql = _bkNorm(booksState.q.trim());
+  const shown = ql ? booksState.chapters.filter(c => _bkNorm(c.chapter).includes(ql)) : booksState.chapters;
+  return shown.map(c =>
+    `<div class="rawi-item bk-chapter" data-ch="${esc(c.chapter)}" role="button" tabindex="0">`
+    + `<span>${esc(c.chapter)}</span><span class="simbadge">${c.count}</span></div>`).join("")
+    || '<div class="note">لا أبواب مطابقة لهذه التصفية.</div>';
+}
+
+async function openBookChapters(book_id, name){
+  Object.assign(booksState, {book_id, collection:name, chapter:null, q:""});
+  results.innerHTML = `<div class="state">… جارٍ تحميل الأبواب</div>`;
+  let d;
+  try { d = await getJSON(`/books/${book_id}/chapters`); }
+  catch(e){ results.innerHTML = `<div class="state">${esc(e.message || "تعذّر التحميل")}</div>`; return; }
+  booksState.collection = d.collection || name;
+  booksState.chapters = d.chapters || [];
+  drawBooksChapters();
+}
+
+function drawBooksChapters(){
+  booksState.view = "chapters"; booksState.chapter = null;
+  results.innerHTML = booksCrumb()
+    + `<div class="note"><b>${booksState.chapters.length}</b> بابًا في «${esc(booksState.collection)}». انقُر بابًا لعرض أحاديثه.</div>`
+    + `<div class="actions"><input id="bkq" class="br-search" placeholder="صفِّ بالباب…" value="${esc(booksState.q)}"></div>`
+    + `<div class="rawi-col" id="bkchlist">${_bkChapterItems()}</div>`;
+}
+
+async function openChapterHadiths(chapter, kind){
+  booksState.chapter = chapter; booksState.view = "hadiths";
+  if(kind !== "more"){ booksState.offset = 0; results.innerHTML = `<div class="state">… جارٍ تحميل الأحاديث</div>`; }
+  const p = new URLSearchParams({offset:booksState.offset, limit:booksState.limit});
+  if(chapter != null) p.set("chapter", chapter);
+  let d;
+  try { d = await getJSON(`/books/${booksState.book_id}/hadiths?${p.toString()}`); }
+  catch(e){ results.innerHTML = `<div class="state">${esc(e.message || "تعذّر التحميل")}</div>`; return; }
+  if(kind !== "more"){
+    results.innerHTML = booksCrumb()
+      + `<div class="note">«${esc(booksState.collection)}» — ${esc(chapter || "كل الأحاديث")}</div>`
+      + `<div id="bklist"></div><div id="bkmore"></div>`;
+  }
+  const list = document.getElementById("bklist");
+  if(list) list.insertAdjacentHTML("beforeend", (d.hadiths || []).map(h => hadithCard(h)).join(""));
+  booksState.offset += (d.hadiths || []).length;
+  const more = document.getElementById("bkmore");
+  if(more) more.innerHTML = d.has_more ? `<button class="tool bk-more">المزيد</button>` : "";
+}
+
+// Library interactions: a collection opens its chapters; a chapter opens its hadiths; «المزيد» pages;
+// the breadcrumb steps back up.
+results.addEventListener("click", e => {
+  const col = e.target.closest(".bk-col");
+  if(col){ openBookChapters(+col.getAttribute("data-id"), col.getAttribute("data-name")); return; }
+  const ch = e.target.closest(".bk-chapter");
+  if(ch){ openChapterHadiths(ch.getAttribute("data-ch")); return; }
+  const more = e.target.closest(".bk-more");
+  if(more){ openChapterHadiths(booksState.chapter, "more"); return; }
+  const cr = e.target.closest(".bk-crumb");
+  if(cr){ cr.getAttribute("data-to") === "collections" ? renderBooks() : drawBooksChapters(); return; }
+});
+results.addEventListener("input", e => {
+  const inp = e.target.closest("#bkq");
+  if(!inp) return;
+  booksState.q = inp.value;
+  const list = document.getElementById("bkchlist");
+  if(list) list.innerHTML = _bkChapterItems();
 });
 
 // Network (الشبكة): an interactive, navigable graph of a narrator's place in the
@@ -1491,7 +1592,7 @@ const ARCHITECTURE = [
   {h:"٦) المحرّك اللغوي (اختياري)", p:[
     "مفتاحٌ بثلاثة أوضاع: «بدون ذكاء اصطناعي» (استخراجيّ، الأأمن)، أو «محلّي» (Ollama)، أو «سحابيّ» (أيّ مزوّد). وهو مُلزَمٌ بالاستشهاد من المصادر المسترجَعة فقط وعدمِ الاختلاق."]},
   {h:"٧) الواجهة", p:[
-    "خادمُ FastAPI (بحث، سؤال، تخريج، تحقيق إسناد، راوٍ، الرواة [فهرسٌ قابلٌ للتصفّح بالحرف والدرجة لكلّ الرواة دون بحث]، شبكةٌ بيانيّة، دفتر، وألسنةُ المراجعة الذاتية: التدقيق وتدقيق المتون وتعارض الرجال) ونافذةٌ مكتبية بالعربية مع هذه الألسنة."]},
+    "خادمُ FastAPI (بحث، سؤال، تخريج، تحقيق إسناد، راوٍ، الرواة [فهرسٌ قابلٌ للتصفّح بالحرف والدرجة لكلّ الرواة دون بحث]، الكتب [تصفّحُ المكتبة ببنيتها: كتابٌ ← أبوابه ← أحاديثه، دون بحث]، شبكةٌ بيانيّة، دفتر، وألسنةُ المراجعة الذاتية: التدقيق وتدقيق المتون وتعارض الرجال) ونافذةٌ مكتبية بالعربية مع هذه الألسنة."]},
   {h:"المبدأ الحاكم", p:[
     "يَسترجع ويُوثّق ولا يَختلق؛ ويُميَّز دائمًا المنقولُ (نصُّ المصدر ونسبتُه = موثوق) عن التحليليّ (الفصلُ والمطابقةُ والحكم = اجتهاديٌّ يُراجَع) — كما تُفصّله صفحة «المنهجية»."]},
   {h:"أين يمكن أن يتحسّن", p:[
@@ -1591,8 +1692,9 @@ const TECH = [
     "litellm as a unified interface. Three modes: off (extractive from the sources, the safest), local (Ollama), remote (any provider); selected with ?engine= and ?model=.",
     "In every mode the engine is constrained to rely only on the retrieved sources, to cite, and not to fabricate; the sources are always returned so the answer stays verifiable."]},
   {h:"API — app/routers/", p:[
-    "GET /search?q=&mode=&field=&group=&collection=&grade= · GET /ask?q=&engine=&model= · GET /takhrij?q= · GET /narrator?name=&limit= · GET /narrators?letter=&grade=&q=&offset=&limit= (browse the رجال — the «الرواة» tab) · GET /verify-isnad?isnad=|hadith_id= · GET /audit (isnad review) · GET /conflicts (rijal grave↔trustworthy collisions) · GET /matn-audit (matn review) · GET /dossier?q=|hadith_id= · GET /hadith/{id} · GET /sources.",
+    "GET /search?q=&mode=&field=&group=&collection=&grade= · GET /ask?q=&engine=&model= · GET /takhrij?q= · GET /narrator?name=&limit= · GET /narrators?letter=&grade=&q=&offset=&limit= (browse the رجال — the «الرواة» tab) · GET /books, /books/{id}/chapters, /books/{id}/hadiths?chapter=&offset=&limit= (navigate the library — the «الكتب» tab) · GET /verify-isnad?isnad=|hadith_id= · GET /audit (isnad review) · GET /conflicts (rijal grave↔trustworthy collisions) · GET /matn-audit (matn review) · GET /dossier?q=|hadith_id= · GET /hadith/{id} · GET /sources.",
     "Browse — the «الرواة» tab (GET /narrators, RijalIndex.browse_rows): a paged, letter-and-درجة-faceted index of every graded narrator (each facet's counts respect the other active filters), so the user can scroll the رجال without searching; a click opens that man's راوٍ card. Names are de-duplicated by exact form.",
+    "Library — the «الكتب» tab (app/routers/books.py + HadithIndex.collections/chapters/chapter_hadiths over the same index.db): navigate the corpus by its OWN structure instead of searching — collections (GET /books) → a collection's كتب/أبواب in book order (GET /books/{id}/chapters) → the hadiths under a chapter, paged (GET /books/{id}/hadiths?chapter=) — a three-view drill-down with a breadcrumb and a client-side chapter filter; the leaf reuses the full hadith card.",
     "Notebook: GET/POST /notebook and PATCH/DELETE /notebook/{id}. Maintenance: POST /admin/reload (clears the provider caches). Health: GET /health and /health/ingestion."]},
   {h:"Settings — app/config.py (.env)", p:[
     "pydantic-settings. The main ones: data_dir (=data), rijal_path (a larger rijal base), embedding_model/embedding_dim (768); the data file paths are properties derived from data_dir.",

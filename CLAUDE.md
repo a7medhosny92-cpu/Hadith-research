@@ -188,6 +188,16 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★ (2026-06-17) NEW «الكتب» LIBRARY-NAVIGATOR TAB (user: «navigare tra i libri e vedere gli argomenti»).** A
+structural browser over the corpus — collections → their كتب/أبواب → the hadiths under each — beside «الرواة»
+(which browses narrators). Backend: `HadithIndex.collections()/chapters(book_id)/chapter_hadiths(book_id, chapter,
+offset, limit)` over `index.db` (chapters grouped + ordered by first appearance) + `app/routers/books.py`
+(`GET /books` · `/books/{id}/chapters` · `/books/{id}/hadiths?chapter=&offset=&limit=`, reusing search's
+`get_index` singleton), registered in `main.py`. UI: a `data-mode="books"` info tab — `renderBooks` (3 views:
+collections → chapters → hadiths) with a breadcrumb (`booksCrumb`), a client-side chapter filter (`#bkq`), `«المزيد»`
+paging, and the leaf reuses `hadithCard`. +2 tests (`tests/test_books.py`), **462 green**, node --check clean. Docs:
+التقنية (API line + a Library card) + البنية («٧) الواجهة» tab list). NB served at `/app`.
+
 **Focus (CURRENT, 2026-06-17): a CANONICAL narrator base — one record per man, NO doublings, accumulating
 EVERYTHING (the user's «base solida senza doppioni; sapere tutto sui narratori»).** Steps 1-6 DONE + step 5 DONE
 (الرواة browse · audit_duplicates · reconcile_seed · built↔built prefix-extension · step 6 تلوث الاسم · step 5 كنية
