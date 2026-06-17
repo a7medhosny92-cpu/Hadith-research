@@ -462,8 +462,17 @@ PIL+libraqm bidi fix: pass RAW logical strings, no manual reshape/bidi — `/tmp
   class = later تابعون mis-graded صحابي mid-chain — الشعبي 10(+عامر الشعبي 4) · قيس بن أبي حازم 8 · عبيد الله بن عبد الله بن
   عتبة 8(+4) · نافع بن أبي نافع 4** (a bare leading-run collapsing onto a Companion namesake). **NEXT LEVER (per the project
   philosophy «the wins are W/S wrong verdicts; A's floor is not chased»): the S تابعي→صحابي mis-grades are the correctness
-  target; the A levels (ابن جريج/غندر) are GAIN but A is the honest floor. Also a 1-line safe fix available: the corrupt
-  «علي بن موسى الرضا»→متهم entry. ASK the user which to take next.**
+  target; the A levels (ابن جريج/غندر) are GAIN. Also a 1-line safe fix available: the corrupt «علي بن موسى الرضا»→متهم entry.
+  **★ USER CHOSE ابن جريج → DONE (shuhra-by-ancestor redirect, `index.py`).** «ابن جريج» IS عبد الملك بن عبد العزيز بن جريج,
+  cited by his GRANDFATHER — the matcher drops «ابن» and reads a bare «جريج», a non-leading partial of every man carrying
+  جريج (his father عبد العزيز, literal sons) → held «مشترك» (~1543 A). New CLOSED, documentary `_SHUHRA` map (folded token
+  tuple → full canonical name) + `_resolve_shuhra`, called at the TOP of `_lookup` AND `candidates`: an EXACT bare-shuhra
+  citation «ابن جريج» redirects to «عبد الملك بن عبد العزيز بن جريج» → resolves uniquely (ثقة), grade/company flow. Exact-tuple
+  match only, so «ابن جريج المكي» / a different «X بن جريج» son / bare «جريج» fall through to normal matching; a DIRECT «ابن X»
+  (ابن سيرين = محمد بن سيرين, father سيرين) already resolves by the literal-son partial → NOT in the map. +1 test, **455 green**.
+  **Effective on the next `audit_isnad` ALONE (live matcher, no rebuild)** — expect A to drop by ~1500 (the «ابن جريج» positions
+  resolve to one ثقة), W/S flat (ثقة, trusted). The map is extensible (ابن أبي ذئب/ابن أبي مليكة/ابن جدعان next, once their exact
+  تقريب nasab is confirmed). **WAITING ON THE USER: re-run `audit_isnad`** → send A (expect ~45,300) + confirm ابن جريج gone from `a_ranked`.
 
 **★★ (2026-06-15, THIS SESSION cont.) THE JOINT-RESOLVER DIRECTION — `app/rijal/resolve.py` core BUILT (gated,
 unwired). The user's insight + the next architecture.** The user pushed a deep point: «the company that should

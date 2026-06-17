@@ -128,6 +128,29 @@ def _is_nasab_ref(name: str) -> bool:
     return bool(toks) and toks[0] in ("ابن", "بن")
 
 
+# Shuhra-by-(distant-)ancestor: a man universally cited by an ANCESTOR's name with «ابن», where that
+# ancestor sits DEEP in his nasab (grandfather or beyond). The token matcher drops «ابن» and reads
+# «ابن جريج» as a bare «جريج», a non-leading partial of EVERY man carrying جريج (his father, the
+# literal «X بن جريج» sons…), so he ties «مشترك» and never resolves. This CLOSED, documentary map (an
+# established رجال shuhra is not a guess) redirects the bare shuhra to the man's full canonical name,
+# so the ordinary lookup resolves him uniquely and his grade/company flow. Keys are folded token
+# tuples; the match is EXACT on the bare shuhra only — «ابن جريج المكي», or a different «X بن جريج»
+# son, has a different token tuple and falls through to normal matching. A *direct* «ابن X» (ابن
+# سيرين = محمد بن سيرين, whose FATHER is سيرين) already resolves by the literal-son partial → not here.
+_SHUHRA: dict[tuple[str, ...], str] = {
+    tuple(t for t in (normalize_for_search(w) for w in form.split()) if t): canonical
+    for form, canonical in {
+        "ابن جريج": "عبد الملك بن عبد العزيز بن جريج",   # جدّه جُرَيج · ثقة فقيه · مكّي
+    }.items()
+}
+
+
+def _resolve_shuhra(name: str) -> str:
+    """Redirect a bare shuhra-by-ancestor citation («ابن جريج») to the man's full canonical name."""
+    key = tuple(t for t in (normalize_for_search(w) for w in name.split()) if t)
+    return _SHUHRA.get(key, name)
+
+
 def _is_flipped_alias(alias: str, name_ism: str | None) -> bool:
     """True when ``alias`` is a person-name whose ism differs from the entry's own — a «flipped» or
     garbled alternate form that must NOT become a matchable identity.
@@ -440,6 +463,7 @@ class RijalIndex:
         coincidence is what made reliable men read as weak namesakes. Equally-good rivals
         (سفيان ↦ ابن عيينة/الثوري) are flagged ambiguous rather than guessed.
         """
+        name = _resolve_shuhra(name)          # «ابن جريج» → عبد الملك بن عبد العزيز بن جريج
         query_seq = _clean_seq(name)
         query = set(query_seq)
         if not query:
@@ -514,6 +538,7 @@ class RijalIndex:
         cached = self._cand_cache.get(ckey)            # this for every link across tens of thousands of chains
         if cached is not None:
             return cached
+        name = _resolve_shuhra(name)          # «ابن جريج» → عبد الملك بن عبد العزيز بن جريج
         query_seq = _clean_seq(name)
         query = set(query_seq)
         if not query or (len(query) == 1 and query_seq[0] in _NON_IDENTIFYING):
