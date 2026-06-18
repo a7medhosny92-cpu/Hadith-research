@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from app.parsing.html_clean import flexible_word
+from app.parsing.html_clean import DIACRITICS_CLASS, flexible_word
 from app.parsing.normalize import strip_diacritics
 
 # Opening quote → its matching closer (a symmetric " pairs with the next ").
@@ -28,11 +28,14 @@ _INTRO = re.compile(
     r"(?:%s)\s*:" % "|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول"))
 )
 # Same speech-introducers, but WITHOUT requiring the colon (classical texts often omit it):
-# a last-resort boundary when no quote and no «… :» were found. Each is anchored to a word END
-# (no Arabic letter follows) so bare «قال» never matches the «قال» INSIDE the dual «قالا:»/«قالوا:»
-# — «حدّثنا فلان وفلان قالا: حدّثنا [route]…» must not split at «قالا», leaving the route in the matn.
+# a last-resort boundary when no quote and no «… :» were found. Anchored to a word END — no Arabic
+# letter follows, **even across a diacritic** — so bare «قال» never matches the «قال» INSIDE the dual
+# «قَالَا:»/«قَالُوا:» («حدّثنا A وB قَالَا: حدّثنا [route]…»). The diacritic step is essential: the corpus
+# is fully vocalised, and «قَالَا» = قَال + a fatha + alif, so a plain «(?![ء-ي])» passed (the next char
+# is a haraka, not a letter) and split inside «قَالَا», stranding the orphan «ـَا:» + the route in the matn.
 _SAY = re.compile(
-    "(?:%s)(?![ء-ي])" % "|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول"))
+    "(?:%s)(?!%s*[ء-ي])" % ("|".join(flexible_word(w) for w in ("قال", "قالت", "قالوا", "يقول", "تقول")),
+                            DIACRITICS_CLASS)
 )
 # Transmission markers that prove a *chain* is present (so the text is not matn-only). Kept
 # distinctive on purpose: «نا/أنا» alone are too short (they hide inside ordinary words like

@@ -299,6 +299,26 @@ def test_multiple_baabs_as_title_spans_on_one_page():
     assert "باب" not in by_num[1].matn and "دعاؤكم" not in by_num[1].matn   # heading text not in the matn
 
 
+def test_alignment_tolerates_an_abbreviated_index_title():
+    """The headings index often abbreviates a باب the body prints in full («باب دعاؤكم إيمانكم» vs the
+    body's «باب ﴿قل ما يعبأ … دعاؤكم﴾ فكيف يكون الدعاء إيمانًا»). The spans still align by a shared
+    distinctive word, so the earlier باب isn't lost — this is the البخاري كتاب الإيمان 2/5/7/10/13 class."""
+    pages = [
+        {"pg": 10, "meta": {"vol": "1", "page": 1}, "text":
+            "<span data-type='title'>٢ - باب قل ما يعبأ بكم ربي لولا دعاؤكم فكيف يكون الدعاء إيمانا</span>"
+            "• [١] حدثنا الحميدي عن عمر قال متن الأول كذا وكذا.\n"
+            "<span data-type='title'>٣ - باب أمور الإيمان</span>"
+            "• [٢] حدثنا قتيبة عن أنس قال متن الثاني كذا وكذا."},
+    ]
+    headings = [
+        {"page": 10, "level": 2, "title": "٢ - باب دعاؤكم إيمانكم"},      # the index's short keyword form
+        {"page": 10, "level": 2, "title": "٣ - باب أمور الإيمان"},
+    ]
+    by_num = {h.number: h.chapter for h in iter_hadith(1284, pages, headings=headings)}
+    assert by_num[1] == "٢ - باب دعاؤكم إيمانكم"     # the abbreviated باب kept its own hadith
+    assert by_num[2] == "٣ - باب أمور الإيمان"
+
+
 def test_unlocatable_heading_falls_back_to_page_level():
     """If a heading can't be placed in the text (a bare «باب»), the page falls back to the last باب —
     the old behaviour, so the change never regresses."""
