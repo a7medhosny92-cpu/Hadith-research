@@ -207,6 +207,17 @@ the wins, A's floor is not chased). **NEXT (after #215 on main): user RE-PULLS m
 (now merges سير, ADD-ONLY) → `build_graph` (سير's شيوخ/تلاميذ → documented network) → `audit_isnad`** → THEN the A.3 effect
 shows (الأصم-class resolved via network). The build_rijal+audit alone gives a quick COVERAGE signal (سير men identified as
 terminal narrators) without the 61-min build_graph; the full A-drop needs build_graph (the network is the A.3 deliverable).
+**★★ SECOND REBUILD (user, 2026-06-18) — سير MERGED, but a COVERAGE GAP found.** After `git pull` (the #215 code), `build_rijal
+--no-download` showed «**merged سير أعلام النبلاء: +93 late narrators (الأصم-class)**» + «attached أقوال الأئمة from سير: 7» →
+rijal 19648 (was 19559). The integration WORKS. **BUT +93 is LOW for a 47 MB / ~6000-tarjama book** → diagnosed: `sair_extract`
+keys on `rijal_extract._BOUNDARY` (line-start «N -»), but سير's tarjama heads flow INLINE («…مات سنة ٢٠٠. ١٤٦ - فلان…»), so only
+**432 of the ~6162 `indexes.headings`** are caught (≈7%). الثقات gets away with the same `_BOUNDARY` because its heads ARE
+line-anchored and it maps heading→body BY NUMBER (sequential); سير can't (numbers RESTART each طبقة, `indexes.numbers` empty). So
+the reliable structure for سير is `indexes.headings` (page-positioned), not the body boundary — a heading-based rewrite is the real
+A.3 lever (could lift +93 → ~+300-600 late men). **MEASURE-FIRST before the blind rewrite + the 61-min build_graph:** wrote
+`scripts/peek_sair_coverage.py` (read-only, ~10s) — compares heading-tarjamas vs body-boundaries, shows the طبقة spread (death-year
+buckets) + sample LATE names with their شيوخ/تلاميذ counts, so we KNOW if the الأصم-class is captured/network-rich before investing.
+**WAITING ON THE USER: pull main → run `python -m scripts.peek_sair_coverage`** → send the output → then decide rewrite-vs-ship-93.
 
 **★ (2026-06-17) ROADMAP #7 STRUCTURAL علّة/شذوذ — STARTED (the user's «1+2+3», step 2).** New `app/qa/illal.py`
 `detect_structural_illal(takhrij)`: reads the SHAPE of the طرق `analyze_narrations` already gathers and emits HINTS
