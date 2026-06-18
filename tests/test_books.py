@@ -114,6 +114,47 @@ def test_sharh_books_endpoints():
         app.dependency_overrides.clear()
 
 
+def test_in_book_word_search():
+    """Search the CONTENT of one book by words — hadith collection and شرح alike."""
+    idx = _idx()
+    # hadith: search within book 1284 only
+    hits = idx.search("الأعمال بالنيات", collection_id=1284)
+    assert hits and all(h.book_id == 1284 for h in hits)
+    assert idx.search("الطهور", collection_id=1284) == []     # that matn is in 1727, not 1284
+
+    sx = SharhIndex(":memory:")
+    sx.add([
+        {"book_id": 641, "sharh": "فتح الباري", "base_id": 1284, "base_name": "صحيح البخاري",
+         "hadith_number": 1, "chapter": "كتاب بدء الوحي", "page": 9, "page_id": 100,
+         "text": "قوله إنما الأعمال بالنيات وإنما لكل امرئ ما نوى."},
+        {"book_id": 999, "sharh": "آخر", "base_id": 1284, "base_name": "صحيح البخاري",
+         "hadith_number": 1, "chapter": "باب", "page": 1, "page_id": 200, "text": "نص آخر لا علاقة له."},
+    ])
+    res = sx.search_in_book(641, "الأعمال")
+    assert len(res) == 1 and res[0]["chapter"] == "كتاب بدء الوحي" and "النيات" in res[0]["text"]
+    assert sx.search_in_book(999, "الأعمال") == []            # scoped to the book
+
+
+def test_in_book_search_endpoints():
+    idx = _idx()
+    sx = SharhIndex(":memory:")
+    sx.add([{"book_id": 641, "sharh": "فتح الباري", "base_id": 1284, "base_name": "صحيح البخاري",
+             "hadith_number": 1, "chapter": "كتاب بدء الوحي", "page": 9, "page_id": 100,
+             "text": "شرح حديث النية والإخلاص."}])
+    from app.main import app
+    from app.routers.ask import get_sharh_index
+    app.dependency_overrides[get_index] = lambda: idx
+    app.dependency_overrides[get_sharh_index] = lambda: sx
+    try:
+        client = TestClient(app)
+        h = client.get("/books/1284/search", params={"q": "الأعمال"}).json()
+        assert h["q"] == "الأعمال" and any("الأعمال" in x["matn"] for x in h["hadiths"])
+        s = client.get("/sharh-books/641/search", params={"q": "النية"}).json()
+        assert len(s["passages"]) == 1 and s["passages"][0]["chapter"] == "كتاب بدء الوحي"
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_books_endpoints():
     idx = _idx()
     from app.main import app
