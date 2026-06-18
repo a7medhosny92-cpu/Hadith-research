@@ -1435,7 +1435,14 @@ function _restoreView(m, html){
 // Make a RAW isnad STRING clickable, keeping the exact wording: split on the transmission connectors
 // (عن / حدثنا / ح …), wrap each narrator run in a link to his راوٍ card, and tint a صحابي green.
 // `sahabiNames` (the chain's known Companions) drives the green; the connectors stay plain text.
-const _ISNAD_CONN = /((?:^|\s)(?:عن|حدّثنا|حدّثني|حدثنا|حدثني|أخبرنا|أخبرني|أنبأنا|أنبأني|ثنا|أنا|سمعت|وحدّثنا|وحدثنا|وحدّثني|وحدثني|وعن|قال)\s|\sح\s)/;
+const _HARAKA = "[ً-ْٰـ]*";   // optional tashkeel/tatweel between letters
+const _CONN_WORDS = ["عن", "حدثنا", "حدثني", "أخبرنا", "أخبرني", "أنبأنا", "أنبأني", "ثنا", "أنا",
+                     "سمعت", "وحدثنا", "وحدثني", "وأخبرنا", "وعن", "قال"];
+// The displayed isnad keeps its tashkeel, so «عَنْ» / «حَدَّثَنَا» must match THROUGH the diacritics —
+// build each connector with optional harakat allowed between its letters.
+const _ISNAD_CONN = new RegExp("((?:^|\\s)(?:"
+  + _CONN_WORDS.map(w => w.split("").join(_HARAKA) + _HARAKA).join("|")
+  + ")\\s|\\sح" + _HARAKA + "\\s)");
 const _RAWI_STOP = new Set(["بن", "ابن", "ابو", "ابي", "ابا", "ام", "عبد", "مولى", "رجل", "وهو", "عند"]);
 function _normRawi(s){ return (s || "").replace(/[ً-ْٰ]/g, "").replace(/[إأآ]/g, "ا"); }
 function _segIsSahabi(seg, names){
@@ -1452,7 +1459,7 @@ function clickableIsnadString(isnad, sahabiNames){
   return isnad.split(_ISNAD_CONN).map((p, i) => {
     if(!p) return "";
     if(i % 2 === 1) return esc(p);                 // a connector (عن / حدثنا / ح) — plain text
-    const seg = p.trim();
+    const seg = p.trim().replace(/^[،,.:؛]+|[،,.:؛]+$/g, "").trim();   // a narrator run, edge punctuation dropped
     if(!seg) return esc(p);
     const sah = _segIsSahabi(seg, sahabiNames) ? " sahabi" : "";
     return `<span class="rawi-link${sah}" data-pick="${esc(seg)}" role="button" tabindex="0">${esc(seg)}</span>`;
