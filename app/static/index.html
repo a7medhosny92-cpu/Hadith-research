@@ -58,6 +58,10 @@
   .r-num{display:inline-block;background:#f0ece0;color:var(--gold2);font-weight:700;font-size:.9rem;border-radius:8px;padding:1px 9px;margin-bottom:8px}
   .card.taliq{background:#fbf9f3;border-style:dashed}
   .taliq-badge{background:#efe7d6;color:var(--gold2);padding:4px 13px;border-radius:999px;font-size:.85rem;font-weight:700}
+  .bk-inchapter{color:var(--accent2);font-size:.9rem;cursor:pointer;margin:14px 0 -4px}
+  .bk-inchapter:hover{text-decoration:underline}
+  .bk-toch{color:var(--accent2);cursor:pointer;font-weight:700}
+  .bk-toch:hover{text-decoration:underline}
   .ch-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
   .ch-pos{color:var(--muted);font-size:.9rem}
   .ch-step[disabled]{opacity:.4;cursor:default}
@@ -1158,9 +1162,10 @@ function booksCrumb(){
   if(booksState.book_id != null)
     p.push(`<span class="bk-crumb" data-to="chapters" role="button" tabindex="0">${esc(booksState.collection)}</span>`);
   if(booksState.chapter != null) p.push(`<span>${esc(booksState.chapter)}</span>`);
+  if(booksState.view === "search") p.push(`<span>بحث في الكتاب</span>`);
   // An explicit one-level «back» button on every view below the root (beside the clickable breadcrumb),
-  // so navigation is always reversible from anywhere: أحاديث → أبواب → الكتب.
-  const back = booksState.chapter != null
+  // so navigation is always reversible from anywhere: أحاديث/بحث → أبواب → الكتب.
+  const back = (booksState.chapter != null || booksState.view === "search")
       ? `<button class="bk-back" data-to="chapters">◀ رجوع</button>`
       : booksState.book_id != null
       ? `<button class="bk-back" data-to="collections">◀ رجوع</button>`
@@ -1193,10 +1198,34 @@ async function openBookChapters(book_id, name, realm){
 
 function drawBooksChapters(){
   booksState.view = "chapters"; booksState.chapter = null;
+  const sharh = booksState.realm === "sharh";
   results.innerHTML = booksCrumb()
-    + `<div class="note"><b>${booksState.chapters.length}</b> بابًا في «${esc(booksState.collection)}». انقُر بابًا لعرض أحاديثه.</div>`
-    + `<div class="actions"><input id="bkq" class="br-search" placeholder="صفِّ بالباب…" value="${esc(booksState.q)}"></div>`
+    + `<div class="note"><b>${booksState.chapters.length}</b> بابًا في «${esc(booksState.collection)}». انقُر بابًا لعرض ${sharh ? "نصوصه" : "أحاديثه"}.</div>`
+    + `<div class="actions" style="flex-wrap:wrap;gap:8px">`
+    +   `<input id="bkfind" class="br-search" placeholder="🔎 ابحث بالكلمات في كامل الكتاب…" value="${esc(booksState.find || "")}">`
+    +   `<input id="bkq" class="br-search" placeholder="صفِّ بأسماء الأبواب…" value="${esc(booksState.q)}"></div>`
     + `<div class="rawi-col" id="bkchlist">${_bkChapterItems()}</div>`;
+}
+
+// In-book word search: search the whole book's CONTENT (matns / شرح passages), not just باب titles.
+async function openBookSearch(query){
+  booksState.find = query; booksState.view = "search";
+  const sharh = booksState.realm === "sharh";
+  results.innerHTML = `<div class="state">… جارٍ البحث في «${esc(booksState.collection)}»</div>`;
+  const url = (sharh ? `/sharh-books/${booksState.book_id}/search` : `/books/${booksState.book_id}/search`)
+    + `?q=${encodeURIComponent(query)}`;
+  let d;
+  try { d = await getJSON(url); }
+  catch(e){ results.innerHTML = `<div class="state">${esc(e.message || "تعذّر البحث")}</div>`; return; }
+  const rows = sharh ? (d.passages || []) : (d.hadiths || []);
+  const cards = rows.map(r => {
+    const chip = r.chapter ? `<div class="bk-inchapter" data-ch="${esc(r.chapter)}">📂 ${esc(r.chapter)}</div>` : "";
+    return chip + (sharh ? sharhPassageCard(r) : hadithCard(r));
+  }).join("");
+  results.innerHTML = booksCrumb()
+    + `<div class="note">نتائج البحث عن «${esc(query)}» في «${esc(booksState.collection)}» — <b>${rows.length}</b>`
+    + (rows.length >= 60 ? "+ (أهمّ النتائج)" : "") + `. <span class="bk-toch">⟵ العودة إلى الأبواب</span></div>`
+    + (cards || `<div class="state">لا نتائج لـ «${esc(query)}» في هذا الكتاب.</div>`);
 }
 
 function sharhPassageCard(p){
@@ -1272,6 +1301,10 @@ results.addEventListener("click", e => {
   if(more){ openChapterHadiths(booksState.chapter, "more"); return; }
   const step = e.target.closest(".ch-step");
   if(step && !step.disabled){ _stepChapter(+step.getAttribute("data-d")); return; }
+  const inch = e.target.closest(".bk-inchapter");        // a result's باب → open it
+  if(inch){ openChapterHadiths(inch.getAttribute("data-ch")); return; }
+  const toch = e.target.closest(".bk-toch");             // «العودة إلى الأبواب» from search results
+  if(toch){ drawBooksChapters(); return; }
   const cr = e.target.closest(".bk-crumb");
   if(cr){ cr.getAttribute("data-to") === "collections" ? renderBooks() : drawBooksChapters(); return; }
 });
@@ -1281,6 +1314,10 @@ results.addEventListener("input", e => {
   booksState.q = inp.value;
   const list = document.getElementById("bkchlist");
   if(list) list.innerHTML = _bkChapterItems();
+});
+results.addEventListener("keydown", e => {                // Enter in the in-book word search
+  const f = e.target.closest("#bkfind");
+  if(f && e.key === "Enter"){ const q = f.value.trim(); if(q) openBookSearch(q); }
 });
 
 // Network (الشبكة): an interactive, navigable graph of a narrator's place in the
@@ -1846,9 +1883,9 @@ const TECH = [
     "litellm as a unified interface. Three modes: off (extractive from the sources, the safest), local (Ollama), remote (any provider); selected with ?engine= and ?model=.",
     "In every mode the engine is constrained to rely only on the retrieved sources, to cite, and not to fabricate; the sources are always returned so the answer stays verifiable."]},
   {h:"API — app/routers/", p:[
-    "GET /search?q=&mode=&field=&group=&collection=&grade= · GET /ask?q=&engine=&model= · GET /takhrij?q= · GET /narrator?name=&limit= · GET /narrators?letter=&grade=&q=&offset=&limit= (browse the رجال — the «الرواة» tab) · GET /books, /books/{id}/chapters, /books/{id}/hadiths?chapter=&offset=&limit= and GET /sharh-books, /sharh-books/{id}/chapters, /sharh-books/{id}/passages?chapter= (navigate the library — collections AND شروح — the «الكتب» tab) · GET /verify-isnad?isnad=|hadith_id= · GET /audit (isnad review) · GET /conflicts (rijal grave↔trustworthy collisions) · GET /matn-audit (matn review) · GET /dossier?q=|hadith_id= · GET /hadith/{id} · GET /sources.",
+    "GET /search?q=&mode=&field=&group=&collection=&grade= · GET /ask?q=&engine=&model= · GET /takhrij?q= · GET /narrator?name=&limit= · GET /narrators?letter=&grade=&q=&offset=&limit= (browse the رجال — the «الرواة» tab) · GET /books, /books/{id}/chapters, /books/{id}/hadiths?chapter=&offset=&limit= and GET /sharh-books, /sharh-books/{id}/chapters, /sharh-books/{id}/passages?chapter=, plus GET /books/{id}/search?q= and /sharh-books/{id}/search?q= (in-book word search over the whole book's content — the «الكتب» tab) · GET /verify-isnad?isnad=|hadith_id= · GET /audit (isnad review) · GET /conflicts (rijal grave↔trustworthy collisions) · GET /matn-audit (matn review) · GET /dossier?q=|hadith_id= · GET /hadith/{id} · GET /sources.",
     "Browse — the «الرواة» tab (GET /narrators, RijalIndex.browse_rows): a paged, letter-and-درجة-faceted index of every graded narrator (each facet's counts respect the other active filters), so the user can scroll the رجال without searching; a click opens that man's راوٍ card. Names are de-duplicated by exact form.",
-    "Library — the «الكتب» tab (app/routers/books.py + HadithIndex.collections/chapters/chapter_hadiths over the same index.db): navigate the corpus by its OWN structure instead of searching — collections (GET /books) → a collection's كتب/أبواب in book order (GET /books/{id}/chapters) → the hadiths under a chapter, paged (GET /books/{id}/hadiths?chapter=) — a three-view drill-down with a breadcrumb and a client-side chapter filter; the leaf reuses the full hadith card. The chapter is built from the book's indexes.headings as a hierarchical «كتاب ← باب» (so untitled «بَابٌ» in different كتب stay distinct, no fusion). أبواب whose body is only a تعليق/أثر — no numbered hadith (common in صحيح البخاري) — are recovered by a parse-time post-pass as «taliq» entries so the whole book is browsable; they carry an empty isnad and kind='taliq', so they show in the library (ordered in book place via a sort key) but are excluded from search, the narrator graph, and the isnad/matn audits. The same tab also browses the شروح (the separate sharh_index.db): GET /sharh-books → each شرح with the collection it explains and its passage count → /sharh-books/{id}/chapters → /sharh-books/{id}/passages?chapter= (one card per passage, its chunks rejoined to the full commentary) — SharhIndex.collections/chapters/chapter_passages. The leaf has «السابق»/«التالي» buttons that step to the previous/next باب in book order (over booksState.chapters) so the user flips through the أبواب without returning to the list.",
+    "Library — the «الكتب» tab (app/routers/books.py + HadithIndex.collections/chapters/chapter_hadiths over the same index.db): navigate the corpus by its OWN structure instead of searching — collections (GET /books) → a collection's كتب/أبواب in book order (GET /books/{id}/chapters) → the hadiths under a chapter, paged (GET /books/{id}/hadiths?chapter=) — a three-view drill-down with a breadcrumb and a client-side chapter filter; the leaf reuses the full hadith card. The chapter is built from the book's indexes.headings as a hierarchical «كتاب ← باب» (so untitled «بَابٌ» in different كتب stay distinct, no fusion). أبواب whose body is only a تعليق/أثر — no numbered hadith (common in صحيح البخاري) — are recovered by a parse-time post-pass as «taliq» entries so the whole book is browsable; they carry an empty isnad and kind='taliq', so they show in the library (ordered in book place via a sort key) but are excluded from search, the narrator graph, and the isnad/matn audits. The same tab also browses the شروح (the separate sharh_index.db): GET /sharh-books → each شرح with the collection it explains and its passage count → /sharh-books/{id}/chapters → /sharh-books/{id}/passages?chapter= (one card per passage, its chunks rejoined to the full commentary) — SharhIndex.collections/chapters/chapter_passages. The leaf has «السابق»/«التالي» buttons that step to the previous/next باب in book order (over booksState.chapters) so the user flips through the أبواب without returning to the list. The chapters view also has an in-book WORD search over the whole book's content (beside the باب-title filter): GET /books/{id}/search?q= (HadithIndex.search collection_id-scoped) and GET /sharh-books/{id}/search?q= (SharhIndex.search_in_book) → ranked matches, each with its باب (clickable to open it).",
     "Notebook: GET/POST /notebook and PATCH/DELETE /notebook/{id}. Maintenance: POST /admin/reload (clears the provider caches). Health: GET /health and /health/ingestion."]},
   {h:"Settings — app/config.py (.env)", p:[
     "pydantic-settings. The main ones: data_dir (=data), rijal_path (a larger rijal base), embedding_model/embedding_dim (768); the data file paths are properties derived from data_dir.",

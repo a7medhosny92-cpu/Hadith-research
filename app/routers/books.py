@@ -56,6 +56,23 @@ def hadiths(
     }
 
 
+@router.get("/books/{book_id}/search")
+def search_book(
+    book_id: int,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(60, ge=1, le=200),
+    index: HadithIndex = Depends(get_index),
+) -> dict:
+    """Search the hadith CONTENT of one collection by words (the «الكتب» tab's in-book search)."""
+    hits = index.search(q, collection_id=book_id, limit=limit)
+    return {
+        "book_id": book_id,
+        "collection": COLLECTION_NAMES.get(book_id, str(book_id)),
+        "q": q,
+        "hadiths": [h.to_dict() for h in hits],
+    }
+
+
 # ── شروح (commentaries): the same navigator over the separate sharh_index.db ──────────────────────
 @router.get("/sharh-books")
 def sharh_books(sharh: SharhIndex = Depends(get_sharh_index)) -> dict:
@@ -87,3 +104,14 @@ def sharh_passages(
         "passages": passages,
         "has_more": len(passages) == limit,
     }
+
+
+@router.get("/sharh-books/{book_id}/search")
+def search_sharh_book(
+    book_id: int,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(60, ge=1, le=200),
+    sharh: SharhIndex = Depends(get_sharh_index),
+) -> dict:
+    """Search the full text of one شرح by words (the «الكتب» tab's in-book search)."""
+    return {"book_id": book_id, "q": q, "passages": sharh.search_in_book(book_id, q, limit=limit)}

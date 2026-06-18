@@ -487,6 +487,29 @@ class SharhIndex:
             for pid, _r, s, bi, bn, hn, ch, pg in rows
         ]
 
+    def search_in_book(self, book_id: int, query: str, *, limit: int = 50) -> list[dict]:
+        """Search the FULL TEXT of one شرح by words (the «الكتب» tab's in-book search) → ranked
+        matching passages, each with its باب and a highlighted snippet."""
+        terms = _tokens(query)
+        if not terms:
+            return []
+        sql = (
+            "SELECT sharh_name, base_name, hadith_number, chapter, page, page_id, "
+            "-bm25(sharh) AS score, snippet(sharh, 0, '«', '»', '…', 24) AS snip, text "
+            "FROM sharh WHERE sharh MATCH ? AND book_id = ? ORDER BY score DESC LIMIT ?"
+        )
+        for joiner in (" AND ", " OR "):
+            q = joiner.join(f'"{t}"' for t in terms)
+            rows = self._con.execute(sql, (q, book_id, limit)).fetchall()
+            if rows or joiner == " OR ":
+                return [
+                    {"book_id": book_id, "sharh": s, "base_name": bn, "hadith_number": hn,
+                     "chapter": ch, "page": pg, "page_id": pid, "snippet": _excerpt(text, tuple(terms)),
+                     "text": text}
+                    for s, bn, hn, ch, pg, pid, _sc, _snip, text in rows
+                ]
+        return []
+
     def full_passage(self, book_id: int, page_id: int) -> str:
         """Re-join every chunk of one شرح *passage* — a whole hadith's commentary, or a
         whole chapter's — identified by its anchor ``page_id``.
