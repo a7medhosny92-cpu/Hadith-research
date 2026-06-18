@@ -112,20 +112,33 @@ def _fold_keep_pos(s: str) -> tuple[str, list[int]]:
 _HEAD_SENTINEL = "\x00"   # marks a title span's position in the cleaned block (clean_block_marked)
 
 
+def _fold(s: str) -> str:
+    return _fold_keep_pos(s)[0]
+
+
+# generic heading words that don't distinguish one باب from another (folded forms)
+_GENERIC_HEAD = {_fold(w) for w in ("باب", "كتاب", "فصل", "جماع", "ابواب", "ذكر", "قول", "الله", "تعالى", "النبي")}
+
+
 def _aligned(spans: list[str], titles: list[str]) -> bool:
-    """The k-th title span on the page is the k-th indexed heading (same count, each text agreeing
-    once folded and the «N - » number dropped) — so a sentinel can be mapped to a chapter by order."""
+    """The k-th title span on the page is the k-th indexed heading — so a sentinel can be mapped to a
+    chapter by order. Same count, and each pair agrees once folded (the «N - » number dropped): one
+    CONTAINS the other, OR they share a DISTINCTIVE word. The shared-word path is essential — the
+    heading index often abbreviates («باب دعاؤكم إيمانكم») what the body prints in full («باب ﴿قل ما
+    يعبأ بكم … دعاؤكم﴾ فكيف يكون الدعاء إيمانًا»), so neither contains the other though it is the same باب."""
     if len(spans) != len(titles):
         return False
     for s, t in zip(spans, titles):
         a, b = _fold(_HEAD_NUM_PREFIX.sub("", s)), _fold(_HEAD_NUM_PREFIX.sub("", t))
-        if not a or not b or (a not in b and b not in a):
+        if not a or not b:
+            return False
+        if a in b or b in a:
+            continue
+        wa = {w for w in a.split() if len(w) >= 4 and w not in _GENERIC_HEAD}
+        wb = {w for w in b.split() if len(w) >= 4 and w not in _GENERIC_HEAD}
+        if not (wa & wb):                       # no distinctive word in common → different headings
             return False
     return True
-
-
-def _fold(s: str) -> str:
-    return _fold_keep_pos(s)[0]
 
 
 def _locate_headings(block: str, page_heads: list[tuple[str, str]]) -> list[tuple[int, str]] | None:

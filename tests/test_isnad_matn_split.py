@@ -204,3 +204,15 @@ def test_marfu_attribution_is_not_taken_for_a_story():
         'قال رسول الله ﷺ: "يخلص المؤمنون من النار فيحبسون على قنطرة"')
     assert matn.startswith("يخلص المؤمنون")
     assert "أبا سعيد" in isnad and "أبا سعيد" not in matn      # the صحابيّ stayed in the chain
+
+
+def test_vocalised_dual_qala_seam_is_not_a_matn_boundary():
+    # «حدّثنا A وB قَالَا: حدّثنا [route] … أنّ النبيّ ﷺ …» — fully VOCALISED, as the corpus is. «قَالَا» =
+    # قَال + fatha + alif, so the old «(?![ء-ي])» end-anchor passed (next char is a haraka) and split
+    # inside «قَالَا», stranding the orphan «ـَا:» + the whole secondary route in the matn — the dominant
+    # «إسناد في المتن» case in the Sunan. The anchor must step over the diacritic.
+    isnad, matn, _ = split_isnad_matn(
+        "حَدَّثَنَا أَبُو بَكْرٍ وَعَلِيٌّ قَالَا: حَدَّثَنَا وَكِيعٌ، عَنْ سُفْيَانَ، عَنْ أَبِيهِ "
+        "أَنَّ النَّبِيَّ ﷺ كَانَ يَتَوَضَّأُ لِكُلِّ صَلَاةٍ")
+    assert matn.strip().startswith("النَّبِيَّ") and "كَانَ يَتَوَضَّأُ" in matn
+    assert "وَكِيعٌ" in isnad and "وَكِيعٌ" not in matn          # the route stayed in the isnad
