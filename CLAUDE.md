@@ -113,6 +113,13 @@ Depth docs (NOT auto-loaded — open when relevant):
   reports **identified · ambiguous «مشترك» · uncovered**, both per DISTINCT narrator AND weighted by CHAIN POSITION
   (freq), with the top **uncovered** nodes by frequency (the gaps that matter) → `data/coverage.json`. «Coverage» =
   identified + ambiguous (the man IS in the base); uncovered = obscure men / name-variant forms / dirty chain nodes.
+- **`python -m scripts.audit_companions [--cap N]`** → read-only: answers «how many صحابة actually appear in the
+  chains?» (the base holds thousands of صحابي because الإصابة is a Companions-only dictionary, but only a fraction
+  ever narrated). Reads `narrators.db` + the base, counts the DISTINCT chain narrators that resolve to «صحابي» (split
+  in تقريب/الكاشف = active transmitters vs only-الإصابة = obscure coverage), the same weighted by CHAIN POSITION, the
+  **TERMINAL** Companions (students of the Prophet node — narrate «عن النبي ﷺ» directly = the classical الصحابة الرواة),
+  and the top المكثرون by freq → `data/companions.json`. The Companion test mirrors the verdict's grade-agreement gate
+  (a confident صحابي, or an ambiguous tie all-صحابي). Built 2026-06-18 to answer the «صحابي count» question.
 - **`python -m scripts.sample_source <id> [--entries N|--find "name"|--pages A-B] --out f.txt`** →
   read-only sampler to study a *prose* rijal source before writing its extractor; downloads the book
   if absent; never touches rijal.jsonl. Ids: تهذيب الكمال 3722, تهذيب التهذيب 1278(دبي)/1293(الرسالة).
