@@ -229,9 +229,9 @@
   .net-center .net-lbl{font-weight:700;fill:#221d16}
   .net-edge{stroke:#cabd9f;opacity:.75;stroke-linecap:round}
   .net-row{font-family:inherit;font-size:14px;fill:var(--gold2);font-weight:700}
-  .net-back{background:var(--card);color:var(--accent);border:1px solid var(--accent);
+  .net-back,.bk-back{background:var(--card);color:var(--accent);border:1px solid var(--accent);
     border-radius:9px;padding:7px 16px;font-size:.95rem;cursor:pointer;font-family:inherit}
-  .net-back:hover{background:var(--accent);color:#fff}
+  .net-back:hover,.bk-back:hover{background:var(--accent);color:#fff}
   .net-legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;align-items:center}
   .net-legend span{display:flex;gap:5px;align-items:center}
   .net-legend i{width:12px;height:12px;border-radius:50%;display:inline-block}
@@ -1114,7 +1114,15 @@ function booksCrumb(){
   if(booksState.book_id != null)
     p.push(`<span class="bk-crumb" data-to="chapters" role="button" tabindex="0">${esc(booksState.collection)}</span>`);
   if(booksState.chapter != null) p.push(`<span>${esc(booksState.chapter)}</span>`);
-  return `<div class="note bk-bread">${p.join(" › ")}</div>`;
+  // An explicit one-level «back» button on every view below the root (beside the clickable breadcrumb),
+  // so navigation is always reversible from anywhere: أحاديث → أبواب → الكتب.
+  const back = booksState.chapter != null
+      ? `<button class="bk-back" data-to="chapters">◀ رجوع</button>`
+      : booksState.book_id != null
+      ? `<button class="bk-back" data-to="collections">◀ رجوع</button>`
+      : "";
+  return `<div class="note bk-bread" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">`
+    + `${back}<span>${p.join(" › ")}</span></div>`;
 }
 
 function _bkNorm(s){ return (s || "").replace(/[ً-ْٰ]/g, ""); }   // strip tashkeel for the filter
@@ -1169,6 +1177,8 @@ async function openChapterHadiths(chapter, kind){
 // Library interactions: a collection opens its chapters; a chapter opens its hadiths; «المزيد» pages;
 // the breadcrumb steps back up.
 results.addEventListener("click", e => {
+  const bb = e.target.closest(".bk-back");
+  if(bb){ bb.getAttribute("data-to") === "chapters" ? drawBooksChapters() : renderBooks(); return; }
   const col = e.target.closest(".bk-col");
   if(col){ openBookChapters(+col.getAttribute("data-id"), col.getAttribute("data-name")); return; }
   const ch = e.target.closest(".bk-chapter");
