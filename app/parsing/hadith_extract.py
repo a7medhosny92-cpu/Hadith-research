@@ -123,30 +123,38 @@ def iter_hadith(
     marker = _detect_marker(pages, start_page_id)
     current: dict | None = None
     chapter: str | None = None
-    # page → [(level, title)] in array order, for the hierarchical chapter; `active` tracks the open path.
-    hbp: dict[int, list[tuple[int, str]]] = {}
+    # Hierarchical chapter from indexes.headings: (page, level, title), sorted by page (stable → keeps
+    # the array order within a page, so كتاب precedes its باب). A two-pointer over the page stream opens
+    # every heading whose page we've reached — robust when a heading's page is NOT an exact page id (it
+    # then opens on the next page, never silently dropped → no fusion; mirrors sair_extract's page map).
+    # `active` tracks the open كتاب→باب path (a higher level closes the deeper ones).
+    heads: list[tuple[int, int, str]] = []
     for h in (headings or []):
         p, t = h.get("page"), (h.get("title") or "").strip()
         if p is not None and t:
-            hbp.setdefault(int(p), []).append((int(h.get("level") or 99), t))
+            heads.append((int(p), int(h.get("level") or 99), t))
+    heads.sort(key=lambda x: x[0])
+    hi = 0
     active: dict[int, str] = {}
 
     for page in sorted(pages, key=lambda p: p.get("pg", 0)):
         pg = page.get("pg", 0)
         if start_page_id is not None and pg < start_page_id:
             continue
-        for lvl, title in hbp.get(pg, []):           # open the hierarchical headings on this page
+        while hi < len(heads) and heads[hi][0] <= pg:    # open every heading up to and including this page
+            _, lvl, title = heads[hi]
             for d in [l for l in list(active) if l > lvl]:
-                del active[d]                        # a higher level closes the deeper ones
+                del active[d]
             active[lvl] = title
-        if hbp:
+            hi += 1
+        if heads:
             chapter = " ← ".join(active[l] for l in sorted(active)) or chapter
 
         meta = page.get("meta") or {}
         raw = page.get("text") or ""
 
         body, footnotes = split_footnotes(raw)
-        if not hbp:                                  # fallback (no headings index): chapter from text
+        if not heads:                                # fallback (no headings index): chapter from text
             titles = extract_titles(body) or (meta.get("headings") or [])
             if titles:
                 chapter = remove_footnote_refs(titles[-1]).strip()
@@ -171,7 +179,7 @@ def iter_hadith(
             segment = _LEADING_SUBNUM.sub("", block[match.end():end], count=1)
             head = normalize_for_search(segment[:40]).split()
             if head and head[0] in _HEADING_WORDS:   # a numbered «باب/كتاب …» heading, not a hadith
-                if not hbp:   # with the headings index the hierarchical chapter already covers it
+                if not heads:   # with the headings index the hierarchical chapter already covers it
                     chapter = remove_footnote_refs(segment.strip().split("\n", 1)[0]).strip() or chapter
                 current = None
                 continue
