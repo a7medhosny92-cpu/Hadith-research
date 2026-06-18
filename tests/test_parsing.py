@@ -231,3 +231,23 @@ def test_hierarchical_chapter_from_headings_index():
     assert by_num[2] == "كتاب الإيمان ← بَابٌ"
     assert by_num[3] == "كتاب العلم ← بَابٌ"
     assert by_num[2] != by_num[3]            # untitled «بَابٌ» in different كتب are distinct
+
+
+def test_hierarchical_chapter_heading_page_not_an_exact_page_id():
+    """A heading whose page isn't an exact page id (turath headings can sit a page off) must still
+    open — on the next page — never be silently dropped (which would re-fuse the باب). The two-pointer
+    binds every heading ≤ the current page, mirroring sair_extract's page map."""
+    pages = [
+        {"pg": 10, "meta": {"vol": "1", "page": 1, "headings": []},
+         "text": "• [١] حدثنا الحميدي عن عمر قال سمعت النبي ﷺ يقول إنما الأعمال بالنيات."},
+        {"pg": 20, "meta": {"vol": "1", "page": 10, "headings": []},
+         "text": "• [٢] حدثنا قتيبة عن أنس أن النبي ﷺ صلى ركعتين."},
+    ]
+    headings = [
+        {"page": 10, "level": 1, "title": "كتاب الإيمان"},
+        {"page": 10, "level": 2, "title": "باب الأول"},
+        {"page": 15, "level": 2, "title": "باب الثاني"},   # page 15 has NO page record
+    ]
+    by_num = {h.number: h.chapter for h in iter_hadith(1284, pages, headings=headings)}
+    assert by_num[1] == "كتاب الإيمان ← باب الأول"
+    assert by_num[2] == "كتاب الإيمان ← باب الثاني"   # the page-15 باب opened on page 20, not lost
