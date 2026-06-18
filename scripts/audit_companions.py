@@ -34,17 +34,14 @@ from app.rijal.index import from_companion_dictionary
 
 
 def _companion(rijal: RijalIndex, name: str):
-    """The base entry if ``name`` resolves to a Companion, else ``None``.
+    """The base entry if ``name`` resolves UNIVOCALLY to a Companion, else ``None``.
 
-    A confident صحابي match, OR an ambiguous one whose every tied candidate is a صحابي (the homonyms
-    agree on صحابي) — mirroring the isnad verdict's grade-agreement gate. A non-صحابي or uncovered node
-    returns ``None``."""
-    m = rijal.lookup(name)
-    if m is None:
-        return None
-    if not m.ambiguous:
-        return m.entry if m.entry.category == "صحابي" else None
-    cands = rijal.candidates(name)
+    A node counts as a Companion only when EVERY real homonym is a صحابي — read from
+    ``candidates(apply_prominence=False)``, the true homonym set, NOT from ``lookup`` (which the
+    prominence prior would resolve to a صحابي bearer even for a bare, ambiguous «عبد الله» with
+    hundreds of mixed namesakes, or «محمد بن جعفر» = 7 non-صحابي + غندر). So a bare/ambiguous node is
+    NOT miscounted as a Companion; only a name whose homonyms agree on صحابي (or a unique صحابي) is."""
+    cands = rijal.candidates(name, apply_prominence=False, max_results=None)
     if cands and all(c.category == "صحابي" for c in cands):
         return cands[0]
     return None
