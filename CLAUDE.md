@@ -202,6 +202,25 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★★ (2026-06-19) THE WHOLE BATCH #274–#278 IS MERGED TO MAIN — ONE measurement pending.** Squash-merged + branch realigned:
+#274 (shuhra «ابن أبي خلف»→القطيعي · «ابن أبي عمر المكي»→العدني) · #275 (قاعدة «هشام بن يزيد عن أنس» = هشام بن زيد بن أنس — so the
+«هشام بن يزيد STILL OPEN» note below is STALE/closed) · #276 (shuhra أبو سعيد الأشج/أبو معاوية/أبو نعيم + قاعدة أبو إسحاق السبيعي) ·
+#277 (DROP «ابن وهب» shuhra — `probe_name` caught the صحابيّ trap) · **#278 (this turn): `resolve_qaida` now FOLDS the kunya in its
+key (`fold_kunya`, like `_KUNYA_COMPANION`) → أبو/أبا/أبي إسحاق all hit one rule (catches the accusative «سمعت أبا إسحاق يقول»), the
+duplicate أبو/أبي إسحاق entry COLLAPSED, and a شيخ marker matches in any kunya case. Pure-code, zero corpus risk. +1 test, 548 green.**
+I MINED the latest audit (`e25c2cea`, the #273 snapshot W 703·S 269·A 45524) end-to-end and found NO more safe high-value batch fix:
+**W Sahihayn is clean post-batch** (ابن أبي خلف/هشام بن يزيد fixed; residual «عبد الله بن واقد» مسلم = genuine 3-way homonymy, needs
+the chain, not a شيخ-قاعدة) · **S is healthy** (269; residual = legit صحابيٌّ-عن-صحابيّ + borderline مخضرمون in weak collections —
+chasing them is per-case «asino» work, risks the صحابي-detection; the one high-value S item ابن أبي عمر المكي is already #274) ·
+**A floor is honest** (سفيان/يحيى bare-isms · أبيه kin · غندر/محمد بن جعفر ②b). **★ ابن وهب (A ~2018: 1357+228+433) is the largest
+fixable-LOOKING A item but a TRAP** — عبد الله بن وهب المصري (ثقة, heavy in الصحيحين) can't be redirected because a bare صحابيّ
+«عبد الله بن وهب» (a LATER source addition, base now 21085 — NOT in the Jun-11 rijal I have) contains-matches; even a قاعدة re-looks-up
+the same string → same trap. The real cure is a BUILD-TIME rijal fix (drop/identify that صحابيّ shadow), NOT a matcher change. Left as
+honest floor (A is not chased). **NEXT MEASUREMENT (the ONE the user runs): `git pull origin main` → `audit_isnad` → the البخاري/مسلم
+filter on the new `audit.json`.** Expect: A ↓ (يونس/حجاج/أبو إسحاق/the new shuhras resolve more positions) · W ↓ a touch (ابن أبي خلف)
+· S flat-to-↓ (ابن أبي عمر المكي → العدني) · Sahihayn W clean except «عبد الله بن واقد». Then: coverage of uncovered narrators
+(`audit_coverage`) — the user's open «vediamo la copertura di altri narratori».
+
 **★ (2026-06-19) BATCH of curated shuhra/قواعد (user «lavora da professionista, non far perdere tempo tra una modifica e l'altra»
 → stop the per-fix audit ping-pong; ONE batch, measure once).** From the held `peek_conarrators` queue + `a_ranked`, all NARROW
 (`_SHUHRA`/قاعدة, never the core matcher — the #269 lesson), safe-on-failure (a target that doesn't resolve → «غير معروف», no harm):
