@@ -13,11 +13,15 @@ by adding a `(bare ism → [(distinctive شيخ markers, full canonical name)])`
 
 from __future__ import annotations
 
-from app.parsing.normalize import normalize_for_search
+from app.parsing.normalize import fold_kunya, normalize_for_search
 
 
 def _f(s: str) -> str:
-    return normalize_for_search(s)
+    """Fold for matching: normalise, then unify the kunya cases أبو/أبا/أبي → «ابو» (the same
+    fold `_KUNYA_COMPANION` uses) so a name keyed «أبو إسحاق» also matches the genitive «أبي
+    إسحاق» and the accusative «أبا إسحاق» (مثل «سمعت أبا إسحاق يقول»), and a شيخ cited in any
+    kunya case matches a kunya marker. A non-kunya name/marker is unchanged."""
+    return " ".join(fold_kunya(normalize_for_search(s).split()))
 
 
 def _markers(*names: str) -> frozenset[str]:
@@ -116,13 +120,8 @@ _QAIDA: dict[str, list[tuple[frozenset[str], str]]] = {
         (_markers("انس", "انس بن مالك"), "هشام بن زيد بن أنس"),
     ],
     # أبو إسحاق السبيعيُّ (عمرو بن عبد الله الهَمْدانيُّ الكوفيُّ، تابعيٌّ ثقة) عن صحابةِ الكوفةِ والبصرةِ —
-    # vs الشيبانيِّ (عن الشعبيِّ) والفزاريِّ (عن الأوزاعيِّ). «أبو/أبي إسحاق» both fold to this key.
+    # vs الشيبانيِّ (عن الشعبيِّ) والفزاريِّ (عن الأوزاعيِّ). «أبو/أبي/أبا إسحاق» all fold to this one key.
     _f("أبو إسحاق"): [
-        (_markers("البراء", "الاسود بن يزيد", "علقمة", "عمرو بن ميمون", "ابي بردة", "حارثة بن مضرب",
-                  "زيد بن ارقم", "النعمان بن بشير", "صلة بن زفر"),
-         "عمرو بن عبد الله السبيعي"),
-    ],
-    _f("أبي إسحاق"): [
         (_markers("البراء", "الاسود بن يزيد", "علقمة", "عمرو بن ميمون", "ابي بردة", "حارثة بن مضرب",
                   "زيد بن ارقم", "النعمان بن بشير", "صلة بن زفر"),
          "عمرو بن عبد الله السبيعي"),

@@ -74,3 +74,13 @@ def test_yunus_and_hajjaj_by_shaykh():
     assert resolve_qaida("أبي إسحاق", "البراء بن عازب") == "عمرو بن عبد الله السبيعي"
     assert resolve_qaida("أبو إسحاق", "أبي بردة") == "عمرو بن عبد الله السبيعي"   # both kunya forms
     assert resolve_qaida("أبي إسحاق", "الأوزاعي") is None        # not السبيعي's شيخ → held
+
+
+def test_kunya_cases_fold_so_all_three_forms_and_marker_cases_match():
+    # the name key folds أبو/أبا/أبي → one rule (incl. the accusative «سمعت أبا إسحاق يقول»)
+    for form in ("أبو إسحاق", "أبي إسحاق", "أبا إسحاق"):
+        assert resolve_qaida(form, "البراء بن عازب") == "عمرو بن عبد الله السبيعي"
+    # the شيخ marker «ابي بردة» matches the شيخ cited in any kunya case
+    assert resolve_qaida("أبا إسحاق", "أبو بردة") == "عمرو بن عبد الله السبيعي"
+    # the أُبَيّ-بن exception holds: «أبي» before «بن» stays a name, never folds to a kunya
+    assert resolve_qaida("سفيان", "أبي بن كعب") is None
