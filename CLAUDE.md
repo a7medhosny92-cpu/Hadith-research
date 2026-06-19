@@ -98,6 +98,11 @@ Depth docs (NOT auto-loaded — open when relevant):
   takhrīj) or LLM `--mode chains` territory (the hard re-segmentations). The «detti non completi» are resolved.
 - **`python -m scripts.measure_dedup [--input f.jsonl]`** → read-only: how much of «مشترك» is the
   same man twice vs genuine homonymy.
+- **`python -m scripts.peek_name_chains "<name>" [--collection C] [--show N]`** → read-only: dumps every
+  chain that cites a narrator surface — the **تلميذ → [name] → شيخ** context + how the matcher graded it,
+  with an AGGREGATED شيوخ/تلاميذ tally. The «زيد بن واقد» method (#270) productised: the raw material for a
+  قاعدة بالشيخ when a homonym is mis-graded (a W/S case) — the شيوخ tally shows the distinctive marker (a شيخ
+  unique to one homonym) vs the shared one (left held, لا نختلق). Built 2026-06-19 for «عبد الله بن واقد».
 - **`python -m scripts.compare_company <name1> <name2> [...] [--top N]`** → read-only: dumps each homonym's
   شيوخ/تلاميذ (with counts) from `narrators.db` and the pairwise overlap (Jaccard + the distinctive, non-shared
   company), with a verdict — **DISTINGUISHABLE** (disjoint company → ②a, context CAN split them) vs **SHARED**
