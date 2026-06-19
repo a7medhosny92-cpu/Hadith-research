@@ -238,9 +238,23 @@ def test_ibn_abi_umar_shuhra_is_the_adani_shaykh_of_muslim():
     rij = RijalIndex([
         {"name": "محمد بن يحيى بن أبي عمر العدني المكي", "grade": "ثقة"},
         {"name": "أحمد بن عبد الجبار العطاردي أبو عمر الكوفي", "grade": "ضعيف"},
+        {"name": "عبد الله بن السائب المخزومي المكي", "grade": "صحابي"},   # buried «عمر بن مخزوم» + المكي
     ])
-    m = rij.lookup("ابن أبي عمر")
-    assert m is not None and m.entry.name.startswith("محمد بن يحيى بن أبي عمر") and m.entry.category == "ثقة"
+    assert rij.lookup("ابن أبي عمر").entry.name.startswith("محمد بن يحيى بن أبي عمر")
+    # the nisba variant «ابن أبي عمر المكي» (cited in صحيح مسلم) must also redirect — NOT a صحابي
+    assert rij.lookup("ابن أبي عمر المكي").entry.category == "ثقة"
+
+
+def test_ibn_abi_khalaf_shuhra_is_the_thiqa_shaykh_of_muslim():
+    # «ابن أبي خلف» = محمد بن أحمد بن أبي خلف القطيعي (ثقة, شيخ مسلم) — the bare folds to «أبو خلف» and
+    # otherwise grabs a كذّاب/ضعيف «أبو خلف». A صحيح مسلم chain must not read a كذّاب here.
+    rij = RijalIndex([
+        {"name": "محمد بن أحمد بن أبي خلف القطيعي البغدادي", "grade": "ثقة"},
+        {"name": "عبد الله بن عيسى الخزاز أبو خلف", "grade": "ضعيف"},
+        {"name": "أبو خلف الأعمى حازم بن عطاء", "grade": "متروك"},
+    ])
+    m = rij.lookup("ابن أبي خلف")
+    assert m is not None and m.entry.name.startswith("محمد بن أحمد بن أبي خلف") and m.entry.category == "ثقة"
 
 
 def test_a_bare_grave_namesake_does_not_sink_a_fuller_trustworthy_one():

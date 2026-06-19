@@ -202,6 +202,17 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★ (2026-06-19) البخاري/مسلم W/S FILTER (user «verifica W in البخاري e مسلم») — 2 shuhra fixes + 2 chains pending.** A متروك/كذاب in
+the Sahihayn ≈ a mis-grade (they have none). The user's filter on `cases.W`/`cases.S` by collection found, beyond the already-fixed
+(أبو عامر العقدي مسيلمة #264, زيد بن واقد #270): **(1) «ابن أبي خلف» (مسلم 10,56) → كذاب** = محمد بن أحمد بن أبي خلف القطيعي (ثقة، شيخ
+مسلم) — the bare folds to «أبو خلف» and grabbed a junk كذّاب ميزان-fragment → **`_SHUHRA` redirect**. **(2) «ابن أبي عمر المكي» (مسلم
+S, ×5) → صحابي** = العدني — the #273 bare redirect missed the **nisba variant**, so it matched 2 صحابة (buried «عمر بن مخزوم»+المكي)
+→ **added the «المكي» key**. Both probe-confirmed, NARROW `_SHUHRA` (the #269 lesson). +3 tests, **546 green**. **LIVE on the next
+`audit_isnad`.** **STILL OPEN (need the chain — held grave-shadow / buried, like زيد بن واقد):** «عبد الله بن واقد» (مسلم 28, الحراني
+متروك vs الهروي ثقة) · «هشام بن يزيد» (مسلم 141, buried-match to متروك أبو المقدام via «أبي يزيد»). **The البخاري/مسلم filter is a
+KEEP — re-run it each audit (a Sahihayn W/S is almost always a real bug).**
+
+
 **★ (2026-06-19) A+B STARTED (user «B e A partiamo»). REVERT CONFIRMED + new قواعد/shuhra (the peek_conarrators held queue).**
 **Revert #272 measured (user): W 703 · S 269 (BEST EVER) · A 46006 — ابن شهاب GONE from A (=الزهري resolves), ابن الهاد 0 in S, زيد
 بن واقد + ابن أبي هلال GONE from W; W top all GENUINE متروك.** The +13 W vs 690 = the depth-revert un-masking real متروك (benign).
