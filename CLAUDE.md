@@ -209,9 +209,13 @@ nasab citation prefers X as the IMMEDIATE father by **nasab DEPTH** — `_nasab_
 «عبيد الله» pair before a divine «ال…» name, and «أبو X»/«أم X», collapse to ONE level; a standalone «عبيد بن عمير» does NOT). The
 `best` partial tuple gains `depth`; `_lookup` sorts/ties on it and `candidates` keeps only the shallowest → the buried كذاب is OUT of
 the homonym set (so canon can't pick it either). `depth=0` for any non-«ابن X» query → inert elsewhere. +1 test, **541 green**, node
---check clean. **LIVE on the next `audit_isnad` (no rebuild).** Docs: التقنية lookup card. NB **زيد بن واقد (W open-case #2) NOT
-fixed** — it's NOT a buried-ancestor but two GENUINE men (الدمشقي ثقة شيخ الأوزاعي · الستي البصري متروك), held «يُتوقَّف» in isolation;
-its W is CONTEXT-driven (canon picks the متروك in some chains). Needs the actual chains to reproduce — not a blind canon change.
+--check clean. **LIVE on the next `audit_isnad` (no rebuild).** Docs: التقنية lookup card.
+**★ (2026-06-19) W open-case #2 FIXED: زيد بن واقد قاعدة (the user sent the 19 chains).** All 19 W chains are SHAMI: زيد بن واقد
+narrates from his Damascus شيوخ (بسر بن عبيد الله الحضرمي · مكحول · حرام بن حكيم · مغيث بن سمي · خالد بن عبد الله بن حسين), cited by
+شامي (يحيى بن حمزة · صدقة بن خالد · الخشني) → unambiguously **زيد بن واقد القرشي الدمشقي (ثقة)**, NOT the Basran الستّي (متروك). This
+is classical تمييز بالشيخ → added a `qaida.py` rule («زيد بن واقد عن بسر/مكحول/مغيث/حرام بن حكيم/خالد بن عبد الله» = الدمشقي; a
+non-Shami شيخ falls through, held — لا نختلق). +1 test, **542 green**. **LIVE on the next `audit_isnad` (no rebuild)** → the ~19
+W on زيد بن واقد clear. So BOTH W open cases are now closed (ابن أبي هلال buried-ancestor + زيد بن واقد قاعدة).
 
 
 **★ (2026-06-19) TWO USER-REPORTED FIXES: سير dialogue-leak (W root) + قاعدة across a waw co-narrator (البخاري #10).**
