@@ -45,3 +45,11 @@ def test_jarir_aswad_ismail():
     assert resolve_qaida("الأسود", "شعبة") == "الأسود بن عامر"
     assert resolve_qaida("إسماعيل", "قيس بن أبي حازم") == "إسماعيل بن أبي خالد"
     assert resolve_qaida("إسماعيل", "أيوب") is None          # the ابن علية side is left held (shared شيوخ)
+
+
+def test_zayd_ibn_waqid_is_the_dimashqi_by_his_shami_shaykh():
+    # زيد بن واقد القرشي الدمشقي (ثقة) vs الستّي البصري (متروك): the Dimashqi narrates from his Shami
+    # شيوخ (بسر بن عبيد الله، مكحول، حرام بن حكيم، مغيث بن سُمَيّ، خالد بن عبد الله بن حسين).
+    for sh in ("بسر بن عبيد الله", "مكحول", "مغيث بن سمي", "حرام بن حكيم", "خالد بن عبد الله بن حسين"):
+        assert resolve_qaida("زيد بن واقد", sh) == "زيد بن واقد القرشي الدمشقي"
+    assert resolve_qaida("زيد بن واقد", "أيوب السختياني") is None   # a non-Shami شيخ → held, never guessed
