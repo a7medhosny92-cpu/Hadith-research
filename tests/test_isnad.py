@@ -68,6 +68,17 @@ def test_real_unnamed_narrators_are_still_kept_as_mubham():
     assert "رجل من أصحاب النبي صلى الله عليه وسلم" in comp
 
 
+def test_qiraa_haal_ana_asmaa_is_not_a_narrator():
+    # «قرأتُ على مالكٍ وأنا أسمع، عن نافع …» — «وأنا أسمع» is the قراءة حال, not a راوٍ: it must neither
+    # glue onto مالك nor (split_conarrators) become a bogus «أنا أسمع» node, and the chain CONTINUES.
+    for sc in (False, True):
+        names = [n["name"] for n in analyze_isnad(
+            "حدثنا يحيى قال قرأت على مالك وأنا أسمع عن نافع عن ابن عمر", split_conarrators=sc).narrators]
+        assert names == ["يحيى", "مالك", "نافع", "ابن عمر"]
+    # a real narrator «أنس» (folds to «انس», not «انا») is untouched
+    assert "أنس" in [n["name"] for n in analyze_isnad("حدثنا حماد عن ثابت عن أنس").narrators]
+
+
 def test_detects_tahwil_with_waw_connectors():
     a = analyze_isnad("حدثنا أبو بكر، حدثنا غندر، عن شعبة ح وحدثنا محمد، عن منصور")
     assert a.has_tahwil
