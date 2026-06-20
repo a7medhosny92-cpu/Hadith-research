@@ -57,6 +57,7 @@ The core is **disambiguating the unnamed narrator from the chain**: when a name 
 </div>
 
 📐 **التفصيل الكامل في [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** — a code‑accurate map of the whole system.
+&nbsp;·&nbsp; 📋 **A detailed write‑up of everything built:** [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md).
 
 ---
 
