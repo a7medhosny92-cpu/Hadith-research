@@ -38,6 +38,10 @@ def test_false_prophet_epithet_is_not_a_jarh():
     # العقدي, ثقة) «كذّاب» and sink a صحيح البخاري chain — مسيلمة الكذّاب is a story character.
     assert classify("جاء مسيلمة الكذاب إلى رسول الله صلى الله عليه وسلم فلما قام") == ("غير معروف", None)
     assert classify("الأسود العنسي الكذاب")[0] == "غير معروف"
+    # al-Mukhtar al-Thaqafi «المختار الكذّاب» of Kufa is the same class — a bio «لما ظهر المختار الكذّاب
+    # بالكوفة …» must NOT grade موسى بن طلحة (a ثقة تابعي) «كذّاب» and sink a صحيح البخاري chain.
+    assert classify("لما ظهر المختار الكذاب بالكوفة هرب منه ناس فقدموا على ابن عمر") == ("غير معروف", None)
+    assert classify("المختار الثقفي الكذاب")[0] == "غير معروف"
     # but a REAL كذّاب verdict is kept — even one that mentions forging «على رسول الله ﷺ»
     assert classify("كذاب")[0] == "كذاب"
     assert classify("كذاب يضع الحديث على رسول الله صلى الله عليه وسلم")[0] == "كذاب"

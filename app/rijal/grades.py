@@ -57,11 +57,12 @@ _QUALIFIERS = ["يهم", "يخطئ", "اوهام", "اختلط", "خلط", "تغ
 _RULES_N = [(cat, [normalize_for_search(p) for p in phrases]) for cat, phrases in _RULES]
 _QUALIFIERS_N = [normalize_for_search(q) for q in _QUALIFIERS]
 
-# A FALSE PROPHET's epithet — «مسيلمةُ الكذّاب»، «الأسودُ [العنسيُّ] الكذّاب»، «طليحةُ/سجاحُ الكذّاب» — is a
-# STORY character, never a جرح of the narrator. A matn «جاء مسيلمةُ الكذّاب إلى رسول الله ﷺ …» that leaked
-# into a verdict field must NOT grade the narrator (أبو عامر العقديّ، ثقة) «كذّاب» and sink a صحيح البخاري
-# chain. Neutralise the epithet before classifying (folded forms: ة→ه, shadda dropped).
-_FALSE_PROPHET_KADHAB = re.compile(r"(?:مسيلمه|الاسود|طليحه|سجاح)\s+(?:العنسي\s+)?الكذاب")
+# A FALSE PROPHET's / false-claimant's epithet — «مسيلمةُ الكذّاب»، «الأسودُ [العنسيُّ] الكذّاب»،
+# «طليحةُ/سجاحُ الكذّاب»، «المختارُ [الثقفيُّ] الكذّاب» (of Kufa) — is a STORY character, never a جرح of the
+# narrator. A bio «لما ظهر المختارُ الكذّابُ بالكوفة …» that leaked into a verdict field must NOT grade the
+# narrator (موسى بن طلحة، ثقة تابعيّ — ابنُ طلحةَ من العشرة) «كذّاب» and sink a صحيح البخاري chain. Neutralise
+# the epithet before classifying (folded forms: ة→ه, shadda dropped).
+_FALSE_PROPHET_KADHAB = re.compile(r"(?:مسيلمه|الاسود|طليحه|سجاح|المختار)\s+(?:العنسي\s+|الثقفي\s+)?الكذاب")
 
 
 def _first_index(haystack: str, needle: str) -> int:
