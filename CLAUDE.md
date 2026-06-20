@@ -207,6 +207,20 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★★ (2026-06-20) FULL `update.bat` REBUILD MEASURED — W 923, but it's MOSTLY GENUINE + the «المختار الكذاب» scene-leak FIXED.**
+The user ran a full update (fresh graph 25399 + rijal 21009, collapsed 1308 dups, +2000 hadith parsed → 86784). **audit_isnad: W
+923 · S 265 · A 46168.** ✓✓ **عبد الله بن واقد GONE from the Ṣaḥīḥayn W** (the #284 قاعدة بالتلميذ worked — مسلم #28 clean). ✓
+**`audit_conflicts` DANGEROUS 0** (held 99) — no grave-shadow. **Decomposed W: it's NOT a regression** — top names are GENUINE
+متروك/كذاب (محمد بن عمر=الواقدي ✓ · الهيثم بن عدي كذاب · داود بن الزبرقان · إبراهيم بن أبي حبيبة …, a healthy review queue on a
+bigger/cleaner base). **★ THE ONE REAL BUG (43×, #1 W, incl. صحيح البخاري #1407/#5986): «موسى بن طلحة» graded كذاب** — his bio
+leaked a STORY «لما ظهر المختارُ الكذّابُ بالكوفة، هرب منه ناس…» and «المختار الكذّاب» (al-Mukhtar al-Thaqafi, the false claimant of
+Kufa) was read as a جرح on موسى بن طلحة (a ثقة تابعي، ابنُ طلحةَ من العشرة!). SAME class as مسيلمة #264. FIX: added «المختار
+[الثقفي] الكذاب» to `grades._FALSE_PROPHET_KADHAB` → neutralised before classifying (verified «لما ظهر المختار الكذاب…» → غير معروف;
+a real «كذاب يضع» still كذاب). +1 test, **552 green**. **NEEDS a `build_rijal --no-download` (classify runs at build) → موسى بن
+طلحة becomes غير معروف/ثقة, the البخاري W clears, W drops ~43.** **RESIDUAL to probe (not fixed — can't without the base): «سفيان بن
+حسين» 30× → «متروك الحديث»** is likely a MIS-grade (the Wasiti is ثقة في غير الزهري) — `probe_name "سفيان بن حسين"` to see whence the
+متروك. **NEXT: `build_rijal --no-download` → `audit_isnad`** (المختار clears) + the سفيان بن حسين probe.
+
 **★ (2026-06-19) THE COVERAGE RESIDUALS (A·B·سمي) — user «procedi con tutti e tre».** Decomposed the three on the data I have,
 did the ACTIONABLE part, was honest about the data-gap part: **(B) «عبد» 780 truncation NOW DROPPED** — it was NOT fixed (only
 «اللفظ له»/«وأنا أسمع» were, via `_is_editorial_node`/`_SKIP`); added `_is_junk_node` (editorial OR a bare «عبد»/«عبيد» = the
