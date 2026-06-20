@@ -207,6 +207,21 @@ Identify the narrator **from the chain before the bare name** (تمييز الم
   A (مشترك). Grade-agreement gates S/W.
 
 ## Current work — KEEP UPDATED
+**★★ (2026-06-20) READ-ALOUD (TTS) + FULL-SCREEN READING MODE — SHIPPED (PR #295 squash-merged, branch realigned to main
+`4c7206b`, 562 green).** The user asked for «la funzione di lettura in arabo» → confirmed via AskUserQuestion = **«Entrambe»**
+(audio + visiva). BOTH built, **entirely client-side** (frontend-only, no backend, no new dependency; reuse `/reader/.../pages`):
+- **Read-aloud «استماع»** — recites the Arabic text via the browser **Web Speech API** (`speechSynthesis`) with a **system Arabic
+  voice** (offline, works in the pywebview desktop window when Windows has an Arabic voice). A `TTS` controller object + a `listenBtn(text)`
+  helper (rendered only where `speechSynthesis` is supported); wired into each **search-result matn** (`hadithCard` + the تعليق card),
+  each **reader page** (`loadReaderPages`), and the **reading-mode** range. Long text is **chunked by sentence** (so it isn't cut off by
+  the ~15 s utterance limit) and queued; clicking the button again **stops** (`TTS.toggle` tracks the active button). A delegated
+  `.tts-btn` handler in `results` covers the in-`results` buttons; the overlay's listen button (on `document.body`) is wired explicitly.
+- **«وضع القراءة»** — a distraction-free **full-screen** reading overlay (`.rd-overlay` on `document.body`, z-index 60) of the current
+  book range: wide centred column, **large adjustable Arabic font** (أ−/أ+, remembered in `reading.fs` across opens), page nav by
+  buttons / **Esc** / arrow keys; built on the same `/pages` endpoint (`openReadingMode`/`drawReadingMode`/`closeReadingMode`). Closed
+  on tab switch. TTS logic verified with node stubs (Arabic-voice pick, sentence chunking, play/stop toggle, empty-text guard).
+  Reference pages synced (البنية tab list, التقنية reader card). NB this is the THIRD reader increment: #293 native text+search, this = audio+reading-mode.
+
 **★★ (2026-06-20) THE ARABIC DOCUMENTARY + THE IN-APP BOOK READER — BOTH SHIPPED (PRs #292, #293 squash-merged, branch
 realigned to main `29c6402`, 562 green).** Two user-requested deliverables this session, beside the تاريخ الإسلام work below:
 - **The Arabic project documentary PDF** (`docs/make_project_doc.py` → `docs/مشروع_تحقيق_الحديث.pdf`, fpdf2 + uharfbuzz +
