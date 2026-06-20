@@ -27,7 +27,7 @@ def main() -> None:
     args = ap.parse_args()
 
     settings = get_settings()
-    path = settings.raw_dir / "turath" / "books" / f"{TARIKH_ISLAM_BOOK_ID}.json"
+    path = settings.raw_dir / "books" / f"{TARIKH_ISLAM_BOOK_ID}.json"
     if not path.exists():
         print(f"⚠ {path} not found — download it first: python -m scripts.ingest --books {TARIKH_ISLAM_BOOK_ID}")
         return
