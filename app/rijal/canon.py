@@ -61,7 +61,9 @@ class Canonicalizer:
             return (None, ())
         if match.score >= 0.9 and not match.ambiguous:   # confident contained match
             return (match.entry.name, ())
-        if match.score >= 0.8:   # prefix partial — still worth trying context disambiguation
+        # prefix partial — only try context disambiguation when the candidates AGREE on grade
+        # (all thiqa, all sahabi, etc.). If grades disagree (thiqa vs daif), we must NOT guess.
+        if match.score >= 0.8 and match.grade_agreed:
             return (None, tuple(dict.fromkeys([match.entry.name, *match.alternatives])))
         return (None, ())
 

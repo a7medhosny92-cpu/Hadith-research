@@ -53,7 +53,11 @@ def _canonicalizer() -> Canonicalizer:
     graph = _graph()
     if graph is None or not graph.count():
         return Canonicalizer(rijal)
-    rijal.set_prominence(graph.frequencies())   # the prominence prior (corpus narration frequency)
+    # rijal.set_prominence(graph.frequencies())   # DISABLED: prominence based on corpus frequency is NOT a
+    # reliable source of evidence. It can mis-identify a narrator (e.g. choosing a weak narrator who appears
+    # more frequently in the corpus over a strong narrator who is the actual referent). The system must only
+    # disambiguate based on DOCUMENTED evidence (company, documented network, qaida rules) — never on
+    # corpus frequency alone.
     profiles = {
         name: set().union(*(_clean_tokens(nb) for nb in neigh)) if neigh else set()
         for name, neigh in graph.adjacency().items()
