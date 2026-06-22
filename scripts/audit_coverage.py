@@ -77,7 +77,8 @@ def main() -> None:
 
     records = load_entries(settings.rijal_file)
     rijal = RijalIndex(records)
-    rijal.set_prominence({name: freq for name, freq in nodes})   # mirror verdict-time disambiguation
+    # rijal.set_prominence({name: freq for name, freq in nodes})   # DISABLED: prominence based on corpus frequency is NOT a
+    # reliable source of evidence. See verify_isnad.py for full explanation.
     print(f"chain narrators (graph nodes): {len(nodes)}   rijal entries: {len(records)}")
 
     res = audit(rijal, nodes)

@@ -126,7 +126,8 @@ def main() -> None:
 
     records = load_entries(settings.rijal_file)
     rijal = RijalIndex(records)
-    rijal.set_prominence({name: freq for _, name, freq in nodes})   # mirror verdict-time disambiguation
+    # rijal.set_prominence({name: freq for _, name, freq in nodes})   # DISABLED: prominence based on corpus frequency is NOT a
+    # reliable source of evidence. See verify_isnad.py for full explanation.
     # the base stores a verdict TEXT («grade»); the «صحابي» CATEGORY is what RijalIndex derives via
     # classify() — so count Companions the same way, not by a (absent) «category» key on the raw dict.
     base_sahaba = sum(1 for r in records if classify(r.get("grade") or "")[0] == "صحابي")

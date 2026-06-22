@@ -156,8 +156,8 @@ def main() -> None:
     if gp.exists():
         g = NarratorGraph(gp)
         if g.count():
-            prominence = g.frequencies()
-            rijal.set_prominence(prominence)
+            # prominence = g.frequencies()   # DISABLED: prominence based on corpus frequency is NOT a
+            # rijal.set_prominence(prominence)  # reliable source of evidence. See verify_isnad.py.
     teachers = load_teachers(settings.documented_network_path)
     df = token_df(entries)
     key2name = {network_key(e["name"]): e["name"]                 # folded شيخ key → a readable name
