@@ -35,7 +35,10 @@ def narrator(
             status_code=503,
             detail="narrator graph not built — run `python -m scripts.build_graph`",
         )
-    rijal.set_prominence(graph.frequencies())   # prominence prior → the candidate list prefers the prolific man
+    # rijal.set_prominence(graph.frequencies())   # DISABLED: prominence based on corpus frequency is NOT a
+    # reliable source of evidence. It can mis-identify a narrator (e.g. choosing a weak narrator who appears
+    # more frequently in the corpus over a strong narrator who is the actual referent). The system must only
+    # disambiguate based on documented evidence.
     dossier = narrator_dossier(name, graph, rijal, limit=limit)
     if dossier is None:
         raise HTTPException(status_code=404, detail="narrator not found in the corpus")

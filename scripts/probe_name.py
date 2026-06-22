@@ -69,7 +69,8 @@ def main() -> None:
     if graph_path.exists():
         graph = NarratorGraph(graph_path)
         if graph.count():
-            rijal.set_prominence(graph.frequencies())   # the prominence prior, like the audit
+            # rijal.set_prominence(graph.frequencies())   # DISABLED: prominence based on corpus frequency is NOT a
+    # reliable source of evidence. See verify_isnad.py for full explanation.
             print(f"(prominence prior from {graph.count()} graph nodes)")
     print(f"rijal entries: {len(entries)}")
 
