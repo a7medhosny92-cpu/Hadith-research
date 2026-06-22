@@ -50,11 +50,13 @@ class Canonicalizer:
         partial, or unknown) returns ``(None, ())`` so the surface form is kept.
         """
         match = self._rijal.lookup(surface)
-        if match is None or match.score < 0.9:   # only CONTAINED matches (score=1.0) are confident
+        if match is None:
             return (None, ())
-        if not match.ambiguous:
+        if match.score >= 0.9 and not match.ambiguous:   # confident contained match
             return (match.entry.name, ())
-        return (None, tuple(dict.fromkeys([match.entry.name, *match.alternatives])))
+        if match.score >= 0.8:   # prefix partial — still worth trying context disambiguation
+            return (None, tuple(dict.fromkeys([match.entry.name, *match.alternatives])))
+        return (None, ())
 
     def _candidates(self, surface: str) -> tuple[str, ...]:
         """Names of every known man this surface could be (cached) — the homonym set."""
