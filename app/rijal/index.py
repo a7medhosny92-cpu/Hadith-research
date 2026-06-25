@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, Iterator
 
@@ -444,7 +446,8 @@ class RijalIndex:
         self._form_seqs: list[list[list[str]]] = []   # name + alias token-seqs (full matching)
         self._kunya_seqs: list[list[list[str]]] = []   # reverse-only forms: teknonyms + kunya
         self._cache: dict[tuple[str, float], "RijalMatch | None"] = {}  # memoise lookups
-        self._cand_cache: dict[tuple[str, int | None, bool], list[RijalEntry]] = {}  # memoise candidates
+        self._cand_cache: OrderedDict[tuple[str, int | None, bool], list[RijalEntry]] = OrderedDict()  # LRU cache for candidates
+        self._cand_cache_max = 10000  # max entries in LRU cache
         self._prominence: dict[str, int] = {}          # name → corpus narration frequency (set externally)
         self._browse: list[dict] | None = None         # cached «تصفّح الرواة» browse rows
         if entries:
@@ -623,7 +626,7 @@ class RijalIndex:
                 partial.append((best[0], best[1], best[2], entry))
 
         if contained:
-            contained.sort(key=lambda pair: (-pair[0], -pair[1].rank))
+            contained.sort(key=lambda pair: (-pair[0], -(pair[1].rank or -999)))
             top = contained[0][0]
             tied = [e for s, e in contained if s == top]
             group = self._keep_trust_over_grave(
@@ -734,6 +737,9 @@ class RijalIndex:
         # تابعي homonym must still see the less-prolific man — see analyze_isnad).
         if max_results is not None and len(out) > max_results:
             out = []
+        # LRU cache eviction
+        if len(self._cand_cache) >= self._cand_cache_max:
+            self._cand_cache.popitem(last=False)  # remove oldest entry
         self._cand_cache[ckey] = out
         return out
 

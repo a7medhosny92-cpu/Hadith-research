@@ -24,6 +24,10 @@ Run after building the index + rijal (+ graph, for the context tier):
 
 from __future__ import annotations
 
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 import argparse
 import json
 import re
@@ -144,6 +148,8 @@ def main() -> None:
     a_cands: dict[str, str] = {}               # …and its candidate list (the «مشترك بين: …» tail), once
     _NAME = re.compile(r"«([^»]+)»")
     scanned = 0
+    import time
+    start_time = time.time()
     for rid, coll, num, isnad in rows:
         scanned += 1
         if scanned % 500 == 0:

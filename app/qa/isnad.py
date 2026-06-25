@@ -195,16 +195,36 @@ def _effective_rank(match: "RijalMatch") -> int | None:
     return min(ranks) if ranks else match.entry.rank
 
 
-def _doubt_candidates(rijal, surface: str, match: "RijalMatch") -> list[dict]:
-    """The tied identities behind an ambiguous node — the few possible men, each with his grade — so the
+def _doubt_candidates(rijal, surface: str, match: "RijalMatch", network: "DocumentedNetwork | None" = None,
+                       shaykh: str | None = None, tilmidh: str | None = None) -> list[dict]:
+    """The tied identities behind an ambiguous node — the possible men, each with his grade — so the
     chain can DOCUMENT an honest doubt («مشترك») instead of a guessed pick. This is the ②b floor: genuine
     homonymy the شيخ/التلميذ company cannot split is presented (who he MIGHT be + درجاتهم), never invented.
     When the candidates AGREE on the grade the حكم is unaffected (محسوم الدرجة); when they disagree the
-    chain is held (يُتوقَّف). Grades are read from the full homonym set so each tied name carries its own."""
-    tied = [match.entry.name, *match.alternatives]
-    grades = {c.name: c.category
-              for c in rijal.candidates(surface, apply_prominence=False, max_results=None)}
-    return [{"name": nm, "grade": grades.get(nm)} for nm in tied]
+    chain is held (يُتوقَّف). Grades are read from the full homonym set so each tied name carries its own.
+    If a network is supplied, candidates are sorted by network support (those with documented links to
+    the resolved shaykh/tilmidh are listed first)."""
+    # Start with the full homonym set from the rijal authority, not just the lookup's top 3 alternatives
+    # Call candidates() once to avoid N+1 scan of 24,000+ entries
+    all_cand_entries = rijal.candidates(surface, apply_prominence=False, max_results=None)
+    all_cands = [c.name for c in all_cand_entries]
+    grades = {c.name: c.category for c in all_cand_entries}
+    
+    # If a network is available, boost candidates with documented links to the resolved neighbours
+    scored: list[tuple[int, str]] = []
+    for nm in all_cands:
+        score = 0
+        if network and shaykh and network.is_student_of(nm, shaykh):
+            score += 2
+        if network and tilmidh and network.is_teacher_of(nm, tilmidh):
+            score += 2
+        scored.append((score, nm))
+    
+    # Sort by network support (descending), then alphabetically
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    
+    # Return all candidates, network-supported first
+    return [{"name": nm, "grade": grades.get(nm), "network_support": score} for score, nm in scored]
 
 
 def _chain_assessment(matches: list["RijalMatch | None"], total: int, mubham: int = 0) -> dict:
@@ -412,7 +432,7 @@ def analyze_isnad(
             else:
                 anchors.append(None)
                 cand_lists.append([c.name for c in
-                                   rijal.candidates(nar.name, apply_prominence=False, max_results=None)])
+                                   rijal.candidates(nar.name, apply_prominence=False, max_results=100)])
         joint = resolve_chain(cand_lists, anchors, network, route_starts)
 
     # «عن أبيه / جده» is a kinship REFERENCE, not a name — resolve it to the real ancestor from the
@@ -578,7 +598,9 @@ def analyze_isnad(
             if match is not None and match.ambiguous and name == narrator.name:
                 # Canon and joint both failed. The narrator is NOT identified.
                 # Show only candidates, never a false "best match" identification.
-                candidates = _doubt_candidates(rijal, narrator.name, match)
+                candidates = _doubt_candidates(rijal, narrator.name, match, network,
+                                                  shaykh=narrators[i+1].name if i+1 < len(narrators) else None,
+                                                  tilmidh=narrators[i-1].name if i > 0 else None)
                 record["rijal"] = {
                     "candidates": candidates,
                     "grade_agreed": match.grade_agreed,
@@ -590,7 +612,9 @@ def analyze_isnad(
                 record["rijal"] = match.to_dict() if match else None
                 if match and match.ambiguous and record["rijal"] is not None:
                     # the ②b honest-doubt node: surface the few possible identities + their grades
-                    record["rijal"]["candidates"] = _doubt_candidates(rijal, narrator.name, match)
+                    record["rijal"]["candidates"] = _doubt_candidates(rijal, narrator.name, match, network,
+                                                                      shaykh=narrators[i+1].name if i+1 < len(narrators) else None,
+                                                                      tilmidh=narrators[i-1].name if i > 0 else None)
         narrator_dicts.append(record)
 
     notes: list[str] = []
