@@ -450,8 +450,26 @@ class RijalIndex:
         self._cand_cache_max = 10000  # max entries in LRU cache
         self._prominence: dict[str, int] = {}          # name → corpus narration frequency (set externally)
         self._browse: list[dict] | None = None         # cached «تصفّح الرواة» browse rows
+        self._token_index: dict[str, set[int]] = {}     # inverted index: token → entry indices (O(1) lookup)
+        self._manual_overrides: dict[str, str] = {}     # manual disambiguation: ambiguous_name → canonical_name
+        self._load_manual_overrides()
         if entries:
             self.add(entries)
+
+    def _load_manual_overrides(self) -> None:
+        """Load manual disambiguation overrides from manual_overrides.json if present."""
+        from pathlib import Path
+        override_path = Path("manual_overrides.json")
+        if override_path.exists():
+            try:
+                import json
+                with open(override_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                # Filter out comment keys (starting with _)
+                self._manual_overrides = {k: v for k, v in data.items() if not k.startswith("_")}
+                print(f"Loaded {len(self._manual_overrides)} manual overrides from {override_path}")
+            except Exception as e:
+                print(f"Warning: Failed to load manual overrides: {e}")
 
     def set_prominence(self, prominence: dict[str, int]) -> None:
         """Supply each canonical name's corpus narration frequency (from the narrator graph) — the
@@ -554,13 +572,21 @@ class RijalIndex:
                 if seq and tuple(seq) not in seen_ro:
                     seen_ro.add(tuple(seq))
                     reverse_only.append(seq)
+            entry_idx = len(self._entries)
             self._entries.append(entry)
             self._form_seqs.append([s for s in forms if not _is_kunya_form(s)])
             self._kunya_seqs.append(reverse_only)
+            # Build inverted index: token → entry indices
+            for seq in forms + reverse_only:
+                for token in seq:
+                    if token not in self._token_index:
+                        self._token_index[token] = set()
+                    self._token_index[token].add(entry_idx)
             n += 1
         self._cache.clear()        # entries changed → drop memoised lookups
         self._cand_cache.clear()   # …and memoised candidate sets
         self._browse = None        # …and the browse index
+        # Note: _token_index is built incrementally during add() and kept
         return n
 
     def count(self) -> int:
@@ -666,7 +692,7 @@ class RijalIndex:
 
         return None
 
-    def candidates(self, name: str, *, max_results: int | None = 40,
+    def candidates(self, name: str, *, max_results: int | None = None,
                    apply_prominence: bool = True) -> list[RijalEntry]:
         """The distinct known men who could be ``name`` — the homonym set for context-based
         تمييز المهمل («the chain before the name»).
@@ -676,15 +702,24 @@ class RijalIndex:
         (fuller-named) homonym — so the chain's company can choose between them, e.g. «محمد
         بن بشر» [متروك] vs «محمد بن بشر العبدي» [ثقة].
 
-        ``max_results`` caps the set: with the default 40, a bare ism with dozens of bearers is
-        too generic for a *chain* to resolve, so we return nothing then (the caller holds). Pass
-        ``max_results=None`` to get the **full** homonym list regardless — for the disambiguation
-        UI, where showing all 134 «عمر» is exactly the point (تمييز المهمل left to the user).
+        ``max_results`` caps the set: with the default None, returns the full homonym list.
+        Pass a numeric limit to cap the set for performance.
         """
         ckey = (name, max_results, apply_prominence)   # memoised — the joint resolver's pre-pass calls
         cached = self._cand_cache.get(ckey)            # this for every link across tens of thousands of chains
         if cached is not None:
             return cached
+
+        # Check for manual override first
+        if name in self._manual_overrides:
+            canonical_name = self._manual_overrides[name]
+            # Find the entry with this canonical name
+            for entry in self._entries:
+                if entry.name == canonical_name:
+                    self._cand_cache[ckey] = [entry]
+                    return [entry]
+            # If not found, fall through to normal lookup
+
         name = _resolve_shuhra(name)          # «ابن جريج» → عبد الملك بن عبد العزيز بن جريج
         query_seq = _clean_seq(name)
         query = set(query_seq)
@@ -694,7 +729,33 @@ class RijalIndex:
         teknonym = not _is_nasab_ref(name)   # «ابن أبي X» is a descendant, not the kunya «أبو X»
         contained: list[tuple[int, RijalEntry]] = []
         partial: list[tuple[int, bool, RijalEntry]] = []
-        for entry, seqs, kunya_seqs in zip(self._entries, self._form_seqs, self._kunya_seqs):
+
+        # Use inverted index to narrow down candidates (O(1) instead of O(n))
+        candidate_indices: set[int] | None = None
+        if self._token_index and query:
+            # Intersect indices for all query tokens
+            for token in query:
+                if token in self._token_index:
+                    if candidate_indices is None:
+                        candidate_indices = self._token_index[token].copy()
+                    else:
+                        candidate_indices &= self._token_index[token]
+                    if not candidate_indices:  # empty intersection = no candidates
+                        break
+                else:
+                    # Token not in index = no candidates can match
+                    candidate_indices = None
+                    break
+            # If no tokens in index or empty intersection, fall back to full scan
+            if candidate_indices is None or not candidate_indices:
+                candidate_indices = None
+
+        # Scan only candidate indices if available, otherwise full scan (fallback)
+        indices_to_scan = candidate_indices if candidate_indices is not None else range(len(self._entries))
+        for idx in indices_to_scan:
+            entry = self._entries[idx]
+            seqs = self._form_seqs[idx]
+            kunya_seqs = self._kunya_seqs[idx]
             specificity, best = _score_entry(
                 query_seq, query, seqs, kunya_seqs, teknonym=teknonym, nasab_ref=not teknonym)
             if specificity:
@@ -742,6 +803,41 @@ class RijalIndex:
             self._cand_cache.popitem(last=False)  # remove oldest entry
         self._cand_cache[ckey] = out
         return out
+
+    def candidates_with_context(
+        self,
+        name: str,
+        *,
+        network: "DocumentedNetwork | None" = None,
+        chain_context: dict[str, set[str]] | None = None,
+        max_results: int | None = None,
+        apply_prominence: bool = True
+    ) -> list[RijalEntry]:
+        """Get candidates with optional context-based disambiguation.
+
+        This is a wrapper around candidates() that applies network-based filtering
+        when a documented network and chain context are available.
+
+        Args:
+            name: The narrator name to look up
+            network: Optional DocumentedNetwork for context-based disambiguation
+            chain_context: Optional dict with 'shuyukh' and 'talamidh' sets
+            max_results: Cap the candidate set (default: None = all candidates)
+            apply_prominence: Apply prominence prior (default: True)
+
+        Returns:
+            Filtered list of candidates (max 10 if context disambiguation applies)
+        """
+        # Get all candidates first
+        all_candidates = self.candidates(name, max_results=max_results, apply_prominence=apply_prominence)
+
+        # Apply context-based disambiguation if we have network and context
+        if network and chain_context and len(all_candidates) > 5:
+            from app.rijal.resolve import disambiguate_by_context
+            filtered = disambiguate_by_context(name, all_candidates, network, chain_context)
+            return filtered
+
+        return all_candidates
 
 
 def _read_jsonl(path: Path) -> Iterator[dict]:

@@ -432,7 +432,7 @@ def analyze_isnad(
             else:
                 anchors.append(None)
                 cand_lists.append([c.name for c in
-                                   rijal.candidates(nar.name, apply_prominence=False, max_results=100)])
+                                   rijal.candidates(nar.name, apply_prominence=False, max_results=None)])
         joint = resolve_chain(cand_lists, anchors, network, route_starts)
 
     # «عن أبيه / جده» is a kinship REFERENCE, not a name — resolve it to the real ancestor from the

@@ -26,8 +26,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.rijal.index import _clean_seq
+
+if TYPE_CHECKING:
+    from app.rijal.index import RijalEntry
 
 
 def network_key(name: str) -> str:
@@ -43,6 +47,13 @@ class DocumentedNetwork:
 
     def __init__(self, students: dict[str, set[str]] | None = None) -> None:
         self._students = students or {}
+        # Build inverted index: student → {teachers} for O(1) shuyukh lookup
+        self._teachers: dict[str, set[str]] = {}
+        for teacher_key, student_set in self._students.items():
+            for student_key in student_set:
+                if student_key not in self._teachers:
+                    self._teachers[student_key] = set()
+                self._teachers[student_key].add(teacher_key)
 
     def is_student_of(self, student_name: str, teacher_name: str) -> bool:
         """Is ``student_name`` recorded as a تلميذ of ``teacher_name``?"""
@@ -51,6 +62,17 @@ class DocumentedNetwork:
     def is_teacher_of(self, teacher_name: str, student_name: str) -> bool:
         """Is ``teacher_name`` recorded as a شيخ of ``student_name``? — the mirror of the above."""
         return self.is_student_of(student_name, teacher_name)
+
+    def get_talamidh(self, teacher_name: str) -> set[str]:
+        """Return all documented تلاميذ (students) of ``teacher_name`` as canonical names."""
+        key = network_key(teacher_name)
+        return self._students.get(key, set())
+
+    def get_shuyukh(self, student_name: str) -> set[str]:
+        """Return all documented شيوخ (teachers) of ``student_name`` as canonical names.
+        Uses the inverted index for O(1) lookup."""
+        student_key = network_key(student_name)
+        return self._teachers.get(student_key, set())
 
     def __bool__(self) -> bool:
         return bool(self._students)
@@ -110,3 +132,64 @@ def resolve_chain(candidates: list[list[str]], anchors: list[str | None],
                 resolved[i] = next(iter(supported))
                 changed = True
     return resolved
+
+
+def disambiguate_by_context(
+    query_name: str,
+    candidates: list["RijalEntry"],
+    network: "DocumentedNetwork | None",
+    chain_context: dict[str, set[str]]
+) -> list["RijalEntry"]:
+    """
+    Use shuyukh/talamidh from the documented network to filter candidates by chain context.
+
+    Args:
+        query_name: The ambiguous narrator name being resolved
+        candidates: List of RijalEntry candidates from the inverted index
+        network: DocumentedNetwork containing shuyukh/talamidh relationships
+        chain_context: Dict with 'shuyukh' and 'talamidh' sets of canonical names in the chain
+
+    Returns:
+        Filtered list of candidates (max 10) sorted by context overlap score
+
+    Example:
+        - Query: "ابن عمر"
+        - Context: shuyukh = {"سالم بن عبد الله بن عمر", "نافع بن عبد الرحمن"}
+        - Candidates: 339 options
+        - Filter: Keep only candidates whose shuyukh/talamidh overlap with context
+        - Result: 1-5 candidates instead of 339
+    """
+    if not network or not candidates:
+        return candidates
+
+    context_shuyukh = set(chain_context.get('shuyukh', []))
+    context_talamidh = set(chain_context.get('talamidh', []))
+
+    if not context_shuyukh and not context_talamidh:
+        return candidates
+
+    scored = []
+    for cand in candidates:
+        cand_name = cand.name
+
+        # Get shuyukh and talamidh for this candidate from the network
+        cand_shuyukh = network.get_shuyukh(cand_name) if network else set()
+        cand_talamidh = network.get_talamidh(cand_name) if network else set()
+
+        # Calculate overlap score
+        shuyukh_overlap = len(context_shuyukh & cand_shuyukh)
+        talamidh_overlap = len(context_talamidh & cand_talamidh)
+        total_overlap = shuyukh_overlap + talamidh_overlap
+
+        if total_overlap > 0:
+            scored.append((cand, total_overlap, shuyukh_overlap, talamidh_overlap))
+
+    # Sort by total overlap, then by shuyukh overlap (more specific)
+    scored.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+    # Return top 10 by score, or all candidates if no overlap found
+    if scored:
+        return [cand for cand, score, _, _ in scored[:10]]
+    else:
+        # No overlap found - return original candidates (fallback)
+        return candidates

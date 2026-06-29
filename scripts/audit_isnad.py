@@ -164,6 +164,7 @@ def main() -> None:
                     a_cands.setdefault(m.group(1), detail.split("مشترك بين:", 1)[-1].strip())
             if len(cases[code]) < args.cap:
                 cases[code].append({"id": rid, "collection": coll, "number": num, "detail": detail})
+    elapsed = time.time() - start_time
     con.close()
 
     report = {
@@ -182,6 +183,7 @@ def main() -> None:
     out_path.write_text(json.dumps(report, ensure_ascii=False), encoding="utf-8")
 
     print(f"\nscanned {scanned} chains → {out_path}")
+    print(f"elapsed time: {elapsed:.1f}s ({scanned/elapsed:.0f} chains/s)")
     for code in ("P", "W", "S", "A"):
         print(f"  [{code}] {_LABEL[code]}: {counts[code]}")
 

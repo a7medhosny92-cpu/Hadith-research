@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risoluzione Manuale Ambiguità Narratori</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .stat-box {
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-box .label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .narrator-list {
+            padding: 20px;
+        }
+
+        .narrator-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .narrator-item:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .narrator-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: white;
+        }
+
+        .narrator-header:hover {
+            background: #f1f3f5;
+        }
+
+        .narrator-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .rank {
+            background: #667eea;
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .count-badge {
+            background: #dc3545;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .expand-icon {
+            font-size: 20px;
+            color: #6c757d;
+            transition: transform 0.3s ease;
+        }
+
+        .narrator-item.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+
+        .candidates-panel {
+            display: none;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .narrator-item.expanded .candidates-panel {
+            display: block;
+        }
+
+        .candidates-header {
+            font-size: 14px;
+            color: #6c757d;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .candidate-list {
+            display: grid;
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .candidate-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 12px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .candidate-item:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .candidate-item.selected {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+
+        .candidate-info {
+            flex: 1;
+        }
+
+        .candidate-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 4px;
+        }
+
+        .candidate-grade {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .grade-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .grade-badge.thiqah { background: #d4edda; color: #155724; }
+        .grade-badge.sahabi { background: #cce5ff; color: #004085; }
+        .grade-badge.saduq { background: #fff3cd; color: #856404; }
+        .grade-badge.daif { background: #f8d7da; color: #721c24; }
+        .grade-badge.majhul { background: #e2e3e5; color: #383d41; }
+
+        .select-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s ease;
+        }
+
+        .select-btn:hover {
+            background: #5568d3;
+        }
+
+        .select-btn.selected {
+            background: #28a745;
+        }
+
+        .actions {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .save-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+
+        .save-btn:hover {
+            background: #218838;
+        }
+
+        .save-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .status {
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        .status.success {
+            color: #28a745;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Risoluzione Manuale Ambiguità Narratori</h1>
+            <p>Seleziona il candidato corretto per i narratori più ambigui</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="number" id="totalAmbiguous">0</div>
+                <div class="label">Narratori Ambigui</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" id="totalCandidates">0</div>
+                <div class="label">Totale Candidati</div>
+            </div>
+            <div class="stat-box">
+                <div class="number" id="resolvedCount">0</div>
+                <div class="label">Risolti</div>
+            </div>
+        </div>
+
+        <div class="error" id="errorBox"></div>
+
+        <div class="narrator-list" id="narratorList">
+            <div class="loading">Caricamento dati...</div>
+        </div>
+
+        <div class="actions">
+            <div class="status" id="status">0 selezioni effettuate</div>
+            <button class="save-btn" id="saveBtn" disabled>Salva Selezioni</button>
+        </div>
+    </div>
+
+    <script>
+        let narrators = [];
+        let selections = {};
+
+        // Load data from CSV
+        async function loadData() {
+            try {
+                const response = await fetch('data/top_ambiguo_detailed.csv');
+                const csvText = await response.text();
+                const lines = csvText.split('\n').filter(line => line.trim());
+                
+                // Parse CSV
+                const headers = lines[0].split(',');
+                narrators = lines.slice(1).map(line => {
+                    const values = line.split(',');
+                    return {
+                        rank: parseInt(values[0]),
+                        name: values[1],
+                        count: parseInt(values[2]),
+                        candidates: values[3] ? values[3].split(' | ') : []
+                    };
+                });
+
+                // Update stats
+                document.getElementById('totalAmbiguous').textContent = narrators.length;
+                document.getElementById('totalCandidates').textContent = 
+                    narrators.reduce((sum, n) => sum + n.count, 0);
+
+                renderNarrators();
+            } catch (error) {
+                showError('Errore nel caricamento dei dati: ' + error.message);
+            }
+        }
+
+        function renderNarrators() {
+            const container = document.getElementById('narratorList');
+            container.innerHTML = '';
+
+            narrators.forEach(narrator => {
+                const item = document.createElement('div');
+                item.className = 'narrator-item';
+                item.innerHTML = `
+                    <div class="narrator-header" onclick="toggleExpand(this)">
+                        <div class="narrator-info">
+                            <div class="rank">${narrator.rank}</div>
+                            <div class="name">${narrator.name}</div>
+                            <div class="count-badge">${narrator.count} candidati</div>
+                        </div>
+                        <div class="expand-icon">▼</div>
+                    </div>
+                    <div class="candidates-panel">
+                        <div class="candidates-header">
+                            Candidati per "${narrator.name}" (clicca per selezionare)
+                        </div>
+                        <div class="candidate-list">
+                            ${narrator.candidates.map((cand, idx) => `
+                                <div class="candidate-item" onclick="selectCandidate('${narrator.name}', ${idx}, this)">
+                                    <div class="candidate-info">
+                                        <div class="candidate-name">${cand}</div>
+                                        <div class="candidate-grade">
+                                            ${getGradeBadge(cand)}
+                                        </div>
+                                    </div>
+                                    <button class="select-btn">Seleziona</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function getGradeBadge(candidate) {
+            if (candidate.includes('[ثقة]')) return '<span class="grade-badge thiqah">ثقة</span>';
+            if (candidate.includes('[صحابي]')) return '<span class="grade-badge sahabi">صحابي</span>';
+            if (candidate.includes('[صدوق]')) return '<span class="grade-badge saduq">صدوق</span>';
+            if (candidate.includes('[ضعيف]')) return '<span class="grade-badge daif">ضعيف</span>';
+            if (candidate.includes('[مجهول]')) return '<span class="grade-badge majhul">مجهول</span>';
+            return '';
+        }
+
+        function toggleExpand(header) {
+            const item = header.parentElement;
+            item.classList.toggle('expanded');
+        }
+
+        function selectCandidate(narratorName, candidateIdx, element) {
+            // Remove previous selection for this narrator
+            const panel = element.parentElement;
+            panel.querySelectorAll('.candidate-item').forEach(item => {
+                item.classList.remove('selected');
+                item.querySelector('.select-btn').classList.remove('selected');
+                item.querySelector('.select-btn').textContent = 'Seleziona';
+            });
+
+            // Add selection to clicked item
+            element.classList.add('selected');
+            element.querySelector('.select-btn').classList.add('selected');
+            element.querySelector('.select-btn').textContent = '✓ Selezionato';
+
+            // Store selection
+            selections[narratorName] = candidateIdx;
+
+            updateStatus();
+        }
+
+        function updateStatus() {
+            const count = Object.keys(selections).length;
+            document.getElementById('resolvedCount').textContent = count;
+            document.getElementById('status').textContent = `${count} selezioni effettuate`;
+            document.getElementById('saveBtn').disabled = count === 0;
+        }
+
+        function showError(message) {
+            const errorBox = document.getElementById('errorBox');
+            errorBox.textContent = message;
+            errorBox.classList.add('show');
+        }
+
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            const overrides = {};
+            
+            Object.entries(selections).forEach(([narratorName, candidateIdx]) => {
+                const narrator = narrators.find(n => n.name === narratorName);
+                if (narrator && narrator.candidates[candidateIdx]) {
+                    // Extract the name from candidate string (remove grade info)
+                    const candidate = narrator.candidates[candidateIdx];
+                    const cleanName = candidate.replace(/\s*\[[^\]]+\]\s*/g, '').trim();
+                    overrides[narratorName] = cleanName;
+                }
+            });
+
+            // Download as JSON
+            const blob = new Blob([JSON.stringify(overrides, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'manual_overrides.json';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            document.getElementById('status').textContent = '✅ File scaricato: manual_overrides.json';
+            document.getElementById('status').classList.add('success');
+        });
+
+        // Load data on page load
+        loadData();
+    </script>
+</body>
+</html>
