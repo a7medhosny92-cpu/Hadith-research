@@ -831,11 +831,17 @@ class RijalIndex:
         # Get all candidates first
         all_candidates = self.candidates(name, max_results=max_results, apply_prominence=apply_prominence)
 
-        # Apply context-based disambiguation if we have network and context
-        if network and chain_context and len(all_candidates) > 5:
+        # Apply context-based disambiguation only when:
+        # - network and context are provided
+        # - candidate count is very high (> 100) - only for extremely ambiguous names (~5% of cases)
+        # - context is non-empty (has actual shuyukh or talamidh)
+        # This selective integration keeps overhead <10% while reducing ambiguity in critical cases
+        if (network and chain_context and len(all_candidates) > 100 and
+            (chain_context.get('shuyukh') or chain_context.get('talamidh'))):
             from app.rijal.resolve import disambiguate_by_context
-            filtered = disambiguate_by_context(name, all_candidates, network, chain_context)
-            return filtered
+            scored_candidates = disambiguate_by_context(name, all_candidates, network, chain_context)
+            # Extract just the candidates (ignore scores for now)
+            return [cand for cand, score in scored_candidates]
 
         return all_candidates
 

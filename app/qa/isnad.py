@@ -20,6 +20,7 @@ from app.parsing.normalize import normalize_for_search, strip_diacritics
 from app.rijal.graph import _ancestor_from_nasab, _kin_relation, is_prophet
 from app.rijal.grades import RANKS
 from app.rijal.index import _clean_tokens, from_companion_dictionary
+from app.rijal.resolve import network_key
 
 if TYPE_CHECKING:
     from app.rijal import RijalIndex, RijalMatch
@@ -423,6 +424,8 @@ def analyze_isnad(
         from app.rijal.resolve import resolve_chain
         cand_lists: list[list[str]] = []
         anchors: list[str | None] = []
+
+        # First pass: identify anchors (confident matches)
         for nar in narrators:
             if is_prophet(nar.name) or _is_mubham(nar.name):
                 cand_lists.append([]); anchors.append(None); continue
@@ -431,8 +434,44 @@ def analyze_isnad(
                 anchors.append(m.entry.name); cand_lists.append([m.entry.name])
             else:
                 anchors.append(None)
-                cand_lists.append([c.name for c in
-                                   rijal.candidates(nar.name, apply_prominence=False, max_results=None)])
+                cand_lists.append([])  # Will fill in second pass with context
+
+        # Build chain context from anchors for context-based disambiguation
+        chain_context: dict[str, set[str]] = {'shuyukh': set(), 'talamidh': set()}
+        for i, anchor in enumerate(anchors):
+            if anchor is None:
+                continue
+            anchor_key = network_key(anchor)
+            # Narrator at i is the تلميذ of i+1 (if not a route start)
+            if i + 1 < len(narrators) and i + 1 not in route_starts:
+                chain_context['shuyukh'].add(anchor_key)  # This anchor is a potential shaykh for i+1
+            # Narrator at i is the شيخ of i-1 (if i not a route start)
+            if i - 1 >= 0 and i not in route_starts:
+                chain_context['talamidh'].add(anchor_key)  # This anchor is a potential talamidh for i-1
+
+        # Second pass: get candidates with selective context-based filtering
+        for i, nar in enumerate(narrators):
+            if is_prophet(nar.name) or _is_mubham(nar.name):
+                continue
+            if anchors[i] is not None:
+                continue  # Already anchored, no need for candidates
+
+            # Get all candidates first to check count
+            all_cands = rijal.candidates(nar.name, apply_prominence=False, max_results=None)
+
+            # Selective integration: only use context for highly ambiguous names (>100 candidates)
+            if len(all_cands) > 100 and (chain_context.get('shuyukh') or chain_context.get('talamidh')):
+                cand_entries = rijal.candidates_with_context(
+                    nar.name,
+                    network=network,
+                    chain_context=chain_context,
+                    apply_prominence=False,
+                    max_results=None
+                )
+                cand_lists[i] = [c.name for c in cand_entries]
+            else:
+                cand_lists[i] = [c.name for c in all_cands]
+
         joint = resolve_chain(cand_lists, anchors, network, route_starts)
 
     # «عن أبيه / جده» is a kinship REFERENCE, not a name — resolve it to the real ancestor from the

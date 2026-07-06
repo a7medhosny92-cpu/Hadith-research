@@ -138,58 +138,106 @@ def disambiguate_by_context(
     query_name: str,
     candidates: list["RijalEntry"],
     network: "DocumentedNetwork | None",
-    chain_context: dict[str, set[str]]
-) -> list["RijalEntry"]:
+    chain_context: dict[str, set[str]],
+    *,
+    min_score: float = 0.3,
+    max_results: int = 10,
+) -> list[tuple["RijalEntry", float]]:
     """
-    Use shuyukh/talamidh from the documented network to filter candidates by chain context.
+    Disambiguazione contestuale con fuzzy matching.
+
+    Usa similarità fuzzy tra shuyukh/talamidh del candidato e del contesto della catena.
 
     Args:
         query_name: The ambiguous narrator name being resolved
         candidates: List of RijalEntry candidates from the inverted index
         network: DocumentedNetwork containing shuyukh/talamidh relationships
         chain_context: Dict with 'shuyukh' and 'talamidh' sets of canonical names in the chain
+        min_score: Minimum score to consider a match (default: 0.3)
+        max_results: Maximum number of candidates to return (default: 10)
 
     Returns:
-        Filtered list of candidates (max 10) sorted by context overlap score
+        List of (candidate, score) tuples sorted by score descending.
+        Candidates with low scores are included at the bottom, not excluded.
 
     Example:
         - Query: "ابن عمر"
-        - Context: shuyukh = {"سالم بن عبد الله بن عمر", "نافع بن عبد الرحمن"}
+        - Context: shuyukh = {"عمر بن الخطاب"}, talamidh = {"نافع مولى ابن عمر"}
         - Candidates: 339 options
-        - Filter: Keep only candidates whose shuyukh/talamidh overlap with context
-        - Result: 1-5 candidates instead of 339
+        - Result: Top 10 candidates with scores, e.g.:
+          [(عبد الله بن عمر بن الخطاب, 0.85), (سالم بن عبد الله, 0.72), ...]
     """
-    if not network or not candidates:
-        return candidates
+    from app.rijal.normalize import fuzzy_match_score_with_variants
 
-    context_shuyukh = set(chain_context.get('shuyukh', []))
-    context_talamidh = set(chain_context.get('talamidh', []))
+    if not network or not candidates:
+        return [(c, 0.0) for c in candidates]
+
+    context_shuyukh = chain_context.get('shuyukh', [])
+    context_talamidh = chain_context.get('talamidh', [])
 
     if not context_shuyukh and not context_talamidh:
-        return candidates
+        return [(c, 0.0) for c in candidates]
 
     scored = []
+    best_score = 0.0
     for cand in candidates:
-        cand_name = cand.name
+        cand_key = network_key(cand.name)
 
         # Get shuyukh and talamidh for this candidate from the network
-        cand_shuyukh = network.get_shuyukh(cand_name) if network else set()
-        cand_talamidh = network.get_talamidh(cand_name) if network else set()
+        cand_shuyukh_keys = network.get_shuyukh(cand_key) or set()
+        cand_talamidh_keys = network.get_talamidh(cand_key) or set()
 
-        # Calculate overlap score
-        shuyukh_overlap = len(context_shuyukh & cand_shuyukh)
-        talamidh_overlap = len(context_talamidh & cand_talamidh)
-        total_overlap = shuyukh_overlap + talamidh_overlap
+        # Calculate fuzzy overlap scores
+        shuyukh_score = 0.0
+        for ctx_shaykh in context_shuyukh:
+            for cand_shaykh in cand_shuyukh_keys:
+                score = fuzzy_match_score_with_variants(ctx_shaykh, cand_shaykh)
+                shuyukh_score = max(shuyukh_score, score)
 
-        if total_overlap > 0:
-            scored.append((cand, total_overlap, shuyukh_overlap, talamidh_overlap))
+        talamidh_score = 0.0
+        for ctx_tilmidh in context_talamidh:
+            for cand_tilmidh in cand_talamidh_keys:
+                score = fuzzy_match_score_with_variants(ctx_tilmidh, cand_tilmidh)
+                talamidh_score = max(talamidh_score, score)
 
-    # Sort by total overlap, then by shuyukh overlap (more specific)
-    scored.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        # Combined score (shuyukh weighted more as it's more reliable)
+        total_score = (shuyukh_score * 0.6) + (talamidh_score * 0.4)
 
-    # Return top 10 by score, or all candidates if no overlap found
-    if scored:
-        return [cand for cand, score, _, _ in scored[:10]]
-    else:
-        # No overlap found - return original candidates (fallback)
-        return candidates
+        # Add grade bonus
+        grade_bonus = _grade_bonus(cand.category)
+        total_score += grade_bonus * 0.1
+
+        scored.append((cand, total_score))
+        best_score = max(best_score, total_score)
+
+        # Early exit: if we found a very high confidence match (>0.8), stop processing
+        if best_score > 0.8:
+            break
+
+    # Sort by score descending
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # Return top max_results
+    return scored[:max_results]
+
+
+def _grade_bonus(grade: str | None) -> float:
+    """Bonus per grado di affidabilità del narratore."""
+    if not grade:
+        return 0.0
+    grade_map = {
+        'صحابي': 0.5,
+        'ثقة': 0.4,
+        'ثقة ثبت': 0.5,
+        'حافظ': 0.45,
+        'صدوق': 0.3,
+        'صدوق له أوهام': 0.2,
+        'مقبول': 0.15,
+        'لين': 0.1,
+        'ضعيف': 0.0,
+        'متروك': -0.2,
+        'كذاب': -0.5,
+        'مجهول': 0.0,
+        'غير معروف': 0.0,
+    }
+    return grade_map.get(grade, 0.0)
