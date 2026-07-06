@@ -437,40 +437,29 @@ def analyze_isnad(
                 cand_lists.append([])  # Will fill in second pass with context
 
         # Build chain context from anchors for context-based disambiguation
-        chain_context: dict[str, set[str]] = {'shuyukh': set(), 'talamidh': set()}
-        for i, anchor in enumerate(anchors):
-            if anchor is None:
-                continue
-            anchor_key = network_key(anchor)
-            # Narrator at i is the تلميذ of i+1 (if not a route start)
-            if i + 1 < len(narrators) and i + 1 not in route_starts:
-                chain_context['shuyukh'].add(anchor_key)  # This anchor is a potential shaykh for i+1
-            # Narrator at i is the شيخ of i-1 (if i not a route start)
-            if i - 1 >= 0 and i not in route_starts:
-                chain_context['talamidh'].add(anchor_key)  # This anchor is a potential talamidh for i-1
+        # DISABILITATO TEMPORANEAMENTE - performance issues (+150% overhead instead of expected +15%)
+        # chain_context: dict[str, set[str]] = {'shuyukh': set(), 'talamidh': set()}
+        # for i, anchor in enumerate(anchors):
+        #     if anchor is None:
+        #         continue
+        #     anchor_key = network_key(anchor)
+        #     # Narrator at i is the تلميذ of i+1 (if not a route start)
+        #     if i + 1 < len(narrators) and i + 1 not in route_starts:
+        #         chain_context['shuyukh'].add(anchor_key)  # This anchor is a potential shaykh for i+1
+        #     # Narrator at i is the شيخ of i-1 (if i not a route start)
+        #     if i - 1 >= 0 and i not in route_starts:
+        #         chain_context['talamidh'].add(anchor_key)  # This anchor is a potential talamidh for i-1
 
-        # Second pass: get candidates with selective context-based filtering
+        # Second pass: get candidates without context-based filtering
         for i, nar in enumerate(narrators):
             if is_prophet(nar.name) or _is_mubham(nar.name):
                 continue
             if anchors[i] is not None:
                 continue  # Already anchored, no need for candidates
 
-            # Get all candidates first to check count
-            all_cands = rijal.candidates(nar.name, apply_prominence=False, max_results=None)
-
-            # Selective integration: only use context for highly ambiguous names (>100 candidates)
-            if len(all_cands) > 100 and (chain_context.get('shuyukh') or chain_context.get('talamidh')):
-                cand_entries = rijal.candidates_with_context(
-                    nar.name,
-                    network=network,
-                    chain_context=chain_context,
-                    apply_prominence=False,
-                    max_results=None
-                )
-                cand_lists[i] = [c.name for c in cand_entries]
-            else:
-                cand_lists[i] = [c.name for c in all_cands]
+            # Get all candidates without context filtering
+            cand_lists[i] = [c.name for c in
+                              rijal.candidates(nar.name, apply_prominence=False, max_results=None)]
 
         joint = resolve_chain(cand_lists, anchors, network, route_starts)
 
