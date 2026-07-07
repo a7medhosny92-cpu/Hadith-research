@@ -255,12 +255,34 @@ _KUNYA_COMPANION: dict[tuple[str, ...], str] = {
 }
 
 
+# Narrator aliases: common abbreviated forms → full canonical names
+# Loaded from scripts/narrator_aliases.json if available
+_NARRATOR_ALIASES: dict[tuple[str, ...], str] = {}
+try:
+    from pathlib import Path
+    _alias_file = Path(__file__).parent.parent.parent / "scripts" / "narrator_aliases.json"
+    if _alias_file.exists():
+        with open(_alias_file, 'r', encoding='utf-8') as f:
+            alias_data = json.load(f)
+        _NARRATOR_ALIASES = {
+            tuple(_clean_seq(form)): canonical
+            for form, canonical in alias_data.items()
+        }
+except Exception:
+    pass  # Alias file not available or invalid
+
+
 def _resolve_shuhra(name: str) -> str:
-    """Redirect a bare shuhra-by-ancestor citation («ابن جريج») or a bare famous-Companion kunya
-    («أبو هريرة») to the man's full canonical name; otherwise return ``name`` unchanged."""
+    """Redirect a bare shuhra-by-ancestor citation («ابن جريج»), a bare famous-Companion kunya
+    («أبو هريرة»), or a common narrator alias («ابن عباس» → عبد الله بن عباس) to the man's
+    full canonical name; otherwise return ``name`` unchanged."""
     key = tuple(t for t in (normalize_for_search(w) for w in name.split()) if t)
     if key in _SHUHRA:
         return _SHUHRA[key]
+    # Use _clean_seq for aliases (consistent with _KUNYA_COMPANION)
+    alias_key = tuple(_clean_seq(name))
+    if alias_key in _NARRATOR_ALIASES:
+        return _NARRATOR_ALIASES[alias_key]
     return _KUNYA_COMPANION.get(tuple(_clean_seq(name)), name)
 
 
