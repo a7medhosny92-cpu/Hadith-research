@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 from app.parsing.normalize import normalize_for_search, strip_diacritics
 from app.rijal.graph import _ancestor_from_nasab, _kin_relation, is_prophet
 from app.rijal.grades import RANKS
-from app.rijal.index import _clean_tokens, from_companion_dictionary
+from app.rijal.index import _clean_tokens, from_companion_dictionary, _resolve_alias_with_context
 from app.rijal.resolve import network_key
 
 if TYPE_CHECKING:
@@ -436,30 +436,33 @@ def analyze_isnad(
                 anchors.append(None)
                 cand_lists.append([])  # Will fill in second pass with context
 
-        # Build chain context from anchors for context-based disambiguation
-        # DISABILITATO TEMPORANEAMENTE - performance issues (+150% overhead instead of expected +15%)
-        # chain_context: dict[str, set[str]] = {'shuyukh': set(), 'talamidh': set()}
-        # for i, anchor in enumerate(anchors):
-        #     if anchor is None:
-        #         continue
-        #     anchor_key = network_key(anchor)
-        #     # Narrator at i is the تلميذ of i+1 (if not a route start)
-        #     if i + 1 < len(narrators) and i + 1 not in route_starts:
-        #         chain_context['shuyukh'].add(anchor_key)  # This anchor is a potential shaykh for i+1
-        #     # Narrator at i is the شيخ of i-1 (if i not a route start)
-        #     if i - 1 >= 0 and i not in route_starts:
-        #         chain_context['talamidh'].add(anchor_key)  # This anchor is a potential talamidh for i-1
+        # Build chain context from anchors for context-based alias resolution
+        # This is lightweight (just set operations) and provides context for alias disambiguation
+        chain_context: dict[str, set[str]] = {'shuyukh': set(), 'talamidh': set()}
+        for i, anchor in enumerate(anchors):
+            if anchor is None:
+                continue
+            anchor_key = network_key(anchor)
+            # Narrator at i is the تلميذ of i+1 (if not a route start)
+            if i + 1 < len(narrators) and i + 1 not in route_starts:
+                chain_context['shuyukh'].add(anchor_key)  # This anchor is a potential shaykh for i+1
+            # Narrator at i is the شيخ of i-1 (if i not a route start)
+            if i - 1 >= 0 and i not in route_starts:
+                chain_context['talamidh'].add(anchor_key)  # This anchor is a potential talamidh for i-1
 
-        # Second pass: get candidates without context-based filtering
+        # Second pass: get candidates with context-aware alias resolution
         for i, nar in enumerate(narrators):
             if is_prophet(nar.name) or _is_mubham(nar.name):
                 continue
             if anchors[i] is not None:
                 continue  # Already anchored, no need for candidates
 
-            # Get all candidates without context filtering
+            # Apply context-aware alias resolution before lookup
+            resolved_name = _resolve_alias_with_context(nar.name, chain_context)
+
+            # Get all candidates without context filtering (context only used for alias)
             cand_lists[i] = [c.name for c in
-                              rijal.candidates(nar.name, apply_prominence=False, max_results=None)]
+                              rijal.candidates(resolved_name, apply_prominence=False, max_results=None)]
 
         joint = resolve_chain(cand_lists, anchors, network, route_starts)
 

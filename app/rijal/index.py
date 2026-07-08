@@ -257,17 +257,29 @@ _KUNYA_COMPANION: dict[tuple[str, ...], str] = {
 
 # Narrator aliases: common abbreviated forms → full canonical names
 # Loaded from scripts/narrator_aliases.json if available
-_NARRATOR_ALIASES: dict[tuple[str, ...], str] = {}
+# Supports both simple string format (backward compatible) and contextual format
+_NARRATOR_ALIASES_DEFAULT: dict[tuple[str, ...], str] = {}
+_NARRATOR_ALIASES_CONTEXTUAL: dict[tuple[str, ...], dict[tuple[str, ...], str]] = {}
 try:
     from pathlib import Path
     _alias_file = Path(__file__).parent.parent.parent / "scripts" / "narrator_aliases.json"
     if _alias_file.exists():
         with open(_alias_file, 'r', encoding='utf-8') as f:
             alias_data = json.load(f)
-        _NARRATOR_ALIASES = {
-            tuple(_clean_seq(form)): canonical
-            for form, canonical in alias_data.items()
-        }
+        for form, value in alias_data.items():
+            form_key = tuple(_clean_seq(form))
+            if isinstance(value, str):
+                # Simple format (backward compatible)
+                _NARRATOR_ALIASES_DEFAULT[form_key] = value
+            elif isinstance(value, dict):
+                # New contextual format
+                _NARRATOR_ALIASES_DEFAULT[form_key] = value.get("default", form)
+                contextual = value.get("contextual", {})
+                for ctx_name, ctx_value in contextual.items():
+                    ctx_key = tuple(_clean_seq(ctx_name))
+                    if form_key not in _NARRATOR_ALIASES_CONTEXTUAL:
+                        _NARRATOR_ALIASES_CONTEXTUAL[form_key] = {}
+                    _NARRATOR_ALIASES_CONTEXTUAL[form_key][ctx_key] = ctx_value
 except Exception:
     pass  # Alias file not available or invalid
 
@@ -281,9 +293,44 @@ def _resolve_shuhra(name: str) -> str:
         return _SHUHRA[key]
     # Use _clean_seq for aliases (consistent with _KUNYA_COMPANION)
     alias_key = tuple(_clean_seq(name))
-    if alias_key in _NARRATOR_ALIASES:
-        return _NARRATOR_ALIASES[alias_key]
+    if alias_key in _NARRATOR_ALIASES_DEFAULT:
+        return _NARRATOR_ALIASES_DEFAULT[alias_key]
     return _KUNYA_COMPANION.get(tuple(_clean_seq(name)), name)
+
+
+def _resolve_alias_with_context(name: str, chain_context: dict[str, set[str]]) -> str:
+    """Resolve an alias using chain context (shuyukh/talamidh) if available.
+    
+    Args:
+        name: The abbreviated narrator name to resolve
+        chain_context: Dict with 'shuyukh' and 'talamidh' sets of normalized names
+    
+    Returns:
+        The resolved canonical name, or the original name if no match found
+    """
+    alias_key = tuple(_clean_seq(name))
+    
+    # Check if this alias has contextual variants
+    if alias_key not in _NARRATOR_ALIASES_CONTEXTUAL:
+        # No contextual variants, use default
+        return _NARRATOR_ALIASES_DEFAULT.get(alias_key, name)
+    
+    contextual_map = _NARRATOR_ALIASES_CONTEXTUAL[alias_key]
+    
+    # Try to match with shuyukh (teachers in the chain)
+    for shaykh in chain_context.get('shuyukh', set()):
+        shaykh_key = tuple(_clean_seq(shaykh))
+        if shaykh_key in contextual_map:
+            return contextual_map[shaykh_key]
+    
+    # Try to match with talamidh (students in the chain)
+    for talamidh in chain_context.get('talamidh', set()):
+        talamidh_key = tuple(_clean_seq(talamidh))
+        if talamidh_key in contextual_map:
+            return contextual_map[talamidh_key]
+    
+    # No contextual match, use default
+    return _NARRATOR_ALIASES_DEFAULT.get(alias_key, name)
 
 
 def _is_flipped_alias(alias: str, name_ism: str | None) -> bool:
